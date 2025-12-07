@@ -16,13 +16,13 @@
             
             --color-i: #ef4444; /* Red */
             --color-j: #22c55e; /* Green */
-            --color-k: #eab308; /* Yellow/Gold */
-            --color-a: #3b82f6; /* Blue */
+            --color-k: #3b82f6; /* Blue (Matched to Java) */
+            --color-a: #f59e0b; /* Orange (Matched to Java) */
             --accent: #6366f1;
         }
 
         [data-theme="dark"] {
-            --bg-color: #111827;
+            --bg-color: #14161a; /* Matched closer to Java Dark */
             --card-color: #1f2937;
             --text-color: #f3f4f6;
             --border-color: #374151;
@@ -43,7 +43,7 @@
 
         /* Sidebar */
         .sidebar {
-            width: 420px; /* Slightly wider for 3D inputs */
+            width: 420px;
             background-color: var(--card-color);
             padding: 20px;
             display: flex;
@@ -150,7 +150,6 @@
 
         canvas {
             flex: 1;
-            cursor: crosshair;
             display: block;
         }
 
@@ -212,6 +211,16 @@
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
             font-size: 16px;
+        }
+
+        .hint-text {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            color: var(--axis-line);
+            font-size: 12px;
+            font-weight: bold;
+            pointer-events: none;
         }
 
         /* Color Helpers */
@@ -318,7 +327,7 @@
                         </div>
                         <div class="input-group input-3d hidden">
                             <span class="input-label text-a">z</span>
-                            <input type="number" id="txtAz" value="0.0" step="0.1">
+                            <input type="number" id="txtAz" value="1.0" step="0.1">
                         </div>
                     </div>
                 </div>
@@ -329,6 +338,7 @@
     <!-- Main Canvas Area -->
     <div class="main-content">
         <canvas id="canvas"></canvas>
+        <div class="hint-text" id="hintText">Drag vectors to edit</div>
         
         <div class="bottom-panel">
             <div class="info-labels">
@@ -350,15 +360,22 @@
             jx: 0.0, jy: 1.0, jz: 0.0,
             kx: 0.0, ky: 0.0, kz: 1.0,
             // Input Vector
-            ax: 1.0, ay: 1.0, az: 0.0,
+            ax: 1.0, ay: 1.0, az: 1.0,
             
             // View Settings
-            scale: 50,
+            scale: 80,
             isDark: false,
             is3D: false,
             
+            // Camera (Matches Java Implementation)
+            cameraPitch: 0.4,
+            cameraYaw: -0.6,
+            
             // Interaction
-            dragging: null,
+            dragging: null, // 'i', 'j', 'a' for 2D mode
+            isRotating: false, // for 3D camera
+            lastMx: 0,
+            lastMy: 0,
             
             // Animation
             animating: false,
@@ -382,6 +399,7 @@
         const btnStop = document.getElementById('btnStop');
         const themeBtn = document.getElementById('themeBtn');
         const modeBtn = document.getElementById('modeBtn');
+        const hintText = document.getElementById('hintText');
         const matrixContainer = document.getElementById('matrixContainer');
         const input3DFields = document.querySelectorAll('.input-3d');
 
@@ -393,7 +411,9 @@
             // Input Listeners
             Object.keys(inputs).forEach(key => {
                 inputs[key].addEventListener('input', (e) => {
-                    const val = parseFloat(e.target.value);
+                    // Replace comma with dot for European inputs
+                    let valStr = e.target.value.replace(',', '.');
+                    const val = parseFloat(valStr);
                     if (!isNaN(val)) {
                         state[key] = val;
                         updateInfo();
@@ -411,7 +431,7 @@
 
             // Canvas Interaction
             canvas.addEventListener('mousedown', onMouseDown);
-            canvas.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mousemove', onMouseMove);
             window.addEventListener('mouseup', onMouseUp);
             
             // Animation
@@ -428,19 +448,19 @@
             modeBtn.textContent = state.is3D ? "3D" : "2D";
             modeBtn.style.background = state.is3D ? "var(--accent)" : "var(--card-color)";
             modeBtn.style.color = state.is3D ? "#fff" : "var(--text-color)";
+            
+            hintText.textContent = state.is3D ? "Drag to rotate view" : "Drag vectors to edit";
 
-            // Toggle Input Visibility
             if (state.is3D) {
                 matrixContainer.classList.add('mode-3d');
                 input3DFields.forEach(el => el.classList.remove('hidden'));
+                canvas.style.cursor = 'move';
             } else {
                 matrixContainer.classList.remove('mode-3d');
                 input3DFields.forEach(el => el.classList.add('hidden'));
+                canvas.style.cursor = 'crosshair';
             }
 
-            // Reset 'Camera' or defaults if switching? 
-            // For now, keep values but just render differently.
-            
             updateInfo();
             draw();
         }
@@ -458,26 +478,26 @@
             const cy = canvas.height / 2;
 
             if (!state.is3D) {
-                // Standard 2D cartesian
-                // x right, y up (inverted for canvas)
+                // Standard 2D cartesian (y up)
                 return {
                     u: cx + (x * state.scale),
                     v: cy - (y * state.scale)
                 };
             } else {
-                // Isometric Projection
-                // x goes down-right (30 deg)
-                // y goes down-left (150 deg)
-                // z goes straight up
+                // 3D Orbit Camera Projection (Ported from Java Code)
+                // Yaw Rotation
+                const x_yaw = x * Math.cos(state.cameraYaw) - y * Math.sin(state.cameraYaw);
+                const y_yaw = x * Math.sin(state.cameraYaw) + y * Math.cos(state.cameraYaw);
                 
-                // Basis for Isometric view
-                const isoCos = 0.866; // cos(30)
-                const isoSin = 0.5;   // sin(30)
+                // Pitch Rotation
+                const y_pitch = y_yaw * Math.cos(state.cameraPitch) - z * Math.sin(state.cameraPitch);
+                const z_pitch = y_yaw * Math.sin(state.cameraPitch) + z * Math.cos(state.cameraPitch);
 
-                const u = cx + (x - y) * isoCos * state.scale;
-                const v = cy + (x + y) * isoSin * state.scale - (z * state.scale);
-                
-                return { u, v };
+                // Project to screen (Perspective scale is constant here, effectively Orthographic with Rotation)
+                return { 
+                    u: cx + x_yaw * state.scale, 
+                    v: cy - z_pitch * state.scale 
+                };
             }
         }
 
@@ -491,23 +511,24 @@
             };
         }
 
-        function getTransformedA() {
-            // Matrix vector multiplication
-            // [ix jx kx] [ax]
-            // [iy jy ky] [ay]
-            // [iz jz kz] [az]
+        function getTransformedPoint(x, y, z) {
+            // Apply Matrix T to point (x,y,z)
             return {
-                x: state.ax * state.ix + state.ay * state.jx + state.az * state.kx,
-                y: state.ax * state.iy + state.ay * state.jy + state.az * state.ky,
-                z: state.ax * state.iz + state.ay * state.jz + state.az * state.kz
+                x: x * state.ix + y * state.jx + z * state.kx,
+                y: x * state.iy + y * state.jy + z * state.ky,
+                z: x * state.iz + y * state.jz + z * state.kz
             };
+        }
+
+        function getTransformedA() {
+            return getTransformedPoint(state.ax, state.ay, state.az);
         }
 
         function getDeterminant() {
             if (!state.is3D) {
                 return state.ix * state.jy - state.iy * state.jx;
             } else {
-                // Sarrus rule / cofactor expansion for 3x3
+                // Sarrus rule
                 return (
                     state.ix * (state.jy * state.kz - state.jz * state.ky) -
                     state.jx * (state.iy * state.kz - state.iz * state.ky) +
@@ -525,14 +546,18 @@
             
             ctx.clearRect(0, 0, w, h);
 
-            const gridColor = state.isDark ? '#374151' : '#e5e7eb';
-            const axisColor = state.isDark ? '#4b5563' : '#9ca3af';
+            // Colors
+            // Grid lines are subtle
+            const gridColor = state.isDark ? 'rgba(70, 75, 85, 0.4)' : 'rgba(200, 200, 200, 0.6)';
+            const axisColor = state.isDark ? 'rgba(150, 150, 150, 0.7)' : 'rgba(100, 100, 100, 0.7)';
+            
             const colorI = style.getPropertyValue('--color-i').trim();
             const colorJ = style.getPropertyValue('--color-j').trim();
             const colorK = style.getPropertyValue('--color-k').trim();
             const colorA = style.getPropertyValue('--color-a').trim();
 
-            ctx.lineWidth = 1;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
 
             // Helper for lines
             const drawLine = (p1, p2, color, width = 1, dash = []) => {
@@ -548,58 +573,30 @@
                 ctx.setLineDash([]);
             };
 
-            const range = 10; // Smaller range for 3D cleanliness
+            const range = 5; 
 
-            // --- Draw Grid ---
-            // In 2D: Grid is static background.
-            // In 3D transformed: Grid represents the plane spanned by i and j usually, or we draw the "world" grid.
-            // Let's draw the "Transformed Grid" (the lattice created by vectors).
+            // --- Draw Transformed Grid ---
+            // Matches Java logic: iterate n, draw line from transformed(-range, n) to transformed(range, n)
+            // This visualizes the plane defined by i and j
             
-            // To prevent clutter in 3D, we mainly draw the grid on the "floor" defined by i and j
-            
-            for (let m = -range; m <= range; m++) {
-                // Lines parallel to i-vector (varying m steps along j-vector)
-                // In 3D, we keep z contribution zero for the base grid to keep it readable, 
-                // OR we draw the full transformed lattice.
-                // Let's draw the full transformed lattice for i/j plane (k=0)
-                
-                // Line varying i, fixed j=m
-                const start1 = {
-                    x: -range*state.ix + m*state.jx,
-                    y: -range*state.iy + m*state.jy,
-                    z: -range*state.iz + m*state.jz
-                };
-                const end1 = {
-                    x: range*state.ix + m*state.jx,
-                    y: range*state.iy + m*state.jy,
-                    z: range*state.iz + m*state.jz
-                };
-                drawLine(start1, end1, gridColor);
+            for (let n = -range; n <= range; n++) {
+                const color = (n === 0) ? axisColor : gridColor;
+                const width = (n === 0) ? 2 : 1;
 
-                // Line varying j, fixed i=m
-                const start2 = {
-                    x: m*state.ix - range*state.jx,
-                    y: m*state.iy - range*state.jy,
-                    z: m*state.iz - range*state.jz
-                };
-                const end2 = {
-                    x: m*state.ix + range*state.jx,
-                    y: m*state.iy + range*state.jy,
-                    z: m*state.iz + range*state.jz
-                };
-                drawLine(start2, end2, gridColor);
-            }
+                // Horizontal lines (varying x)
+                // In Java: applyTransform(-range, n, 0) -> applyTransform(range, n, 0)
+                const pStart = getTransformedPoint(-range, n, 0);
+                const pEnd = getTransformedPoint(range, n, 0);
+                drawLine(pStart, pEnd, color, width);
 
-            // --- Axes (World Origin lines) ---
-            // Visual anchor
-            drawLine({x:-range, y:0, z:0}, {x:range, y:0, z:0}, axisColor, 1);
-            drawLine({x:0, y:-range, z:0}, {x:0, y:range, z:0}, axisColor, 1);
-            if (state.is3D) {
-                drawLine({x:0, y:0, z:-range}, {x:0, y:0, z:range}, axisColor, 1);
+                // Vertical lines (varying y)
+                // In Java: applyTransform(n, -range, 0) -> applyTransform(n, range, 0)
+                const qStart = getTransformedPoint(n, -range, 0);
+                const qEnd = getTransformedPoint(n, range, 0);
+                drawLine(qStart, qEnd, color, width);
             }
 
             // --- Vectors ---
-            // Draw order matters for pseudo-depth
             
             // Basis Vectors
             drawVector(state.ix, state.iy, state.iz, colorI, "i");
@@ -614,9 +611,9 @@
 
             // Origin Dot
             const origin = project(0,0,0);
-            ctx.fillStyle = state.isDark ? '#e5e5e5' : '#333';
+            ctx.fillStyle = state.isDark ? '#fff' : '#000';
             ctx.beginPath();
-            ctx.arc(origin.u, origin.v, 4, 0, Math.PI * 2);
+            ctx.arc(origin.u, origin.v, 3, 0, Math.PI * 2);
             ctx.fill();
         }
 
@@ -624,37 +621,36 @@
             const start = project(0, 0, 0);
             const end = project(vx, vy, vz);
             
-            // Shadow line (projection to floor) to help visualize 3D height
-            if (state.is3D && Math.abs(vz) > 0.01) {
-                const shadowEnd = project(vx, vy, 0); // Where it would be if z=0 (in world space? No, visual floor)
-                // Actually, a "stick" to the floor (z=0 plane of the vector tip)
-                // If the vector is (1,1,1), it points up. We draw a line from (1,1,0) to (1,1,1).
-                // Wait, that assumes we are visualizing the vector in world space.
-                // Since this is a visualizer of the vector itself:
+            // 3D Depth Helper (Shadow Line)
+            // Draw dotted line from tip to floor (z=0)
+            if (state.is3D && Math.abs(vz) > 0.05) {
+                const floorPt = project(vx, vy, 0);
                 
-                // Let's draw a dotted line from the tip to the "xy-plane" component of the vector
-                // This helps depth perception in isometric view
-                // We need to know the 'world' z of this vector tip. 
-                // In our math, vz is the z-coord.
-                
-                // But wait, the vector is a linear combo of basis vectors. 
-                // The 'floor' is visually the plane z=0 in screen projection logic.
-                // Let's just draw the line from (u,v) to (u, v + z_height_in_pixels).
-                // In isometric, z moves straight up.
-                const groundV = end.v + (vz * state.scale); 
-                
-                // This is tricky because vz is math-z. 
-                // Let's calculate the projection of the point (x,y,0)
-                const base = project(vx, vy, 0); // This is wrong if the basis vectors have Z.
-                
-                // Simplified shadow: Just a line to the origin? No.
-                // Let's skip complex shadows for now to keep it clean.
+                // Shadow Line
+                ctx.beginPath();
+                ctx.moveTo(end.u, end.v);
+                ctx.lineTo(floorPt.u, floorPt.v);
+                ctx.strokeStyle = color;
+                ctx.globalAlpha = 0.3; // Fade out shadow line
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]); // Dotted
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.globalAlpha = 1.0;
+
+                // Floor Dot
+                ctx.beginPath();
+                ctx.arc(floorPt.u, floorPt.v, 2, 0, Math.PI*2);
+                ctx.fillStyle = color;
+                ctx.globalAlpha = 0.3;
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
             }
 
             const angle = Math.atan2(end.v - start.v, end.u - start.u);
             const headLen = 12;
 
-            // Line
+            // Main Vector Line
             ctx.beginPath();
             ctx.moveTo(start.u, start.v);
             ctx.lineTo(end.u, end.v);
@@ -673,8 +669,13 @@
 
             // Label
             ctx.font = "bold 14px sans-serif";
-            const lx = end.u + 10;
-            const ly = end.v - 5;
+            const lx = end.u + 8;
+            const ly = end.v - 8;
+            
+            // Label Shadow for readability
+            ctx.fillStyle = state.isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)';
+            ctx.fillText(label, lx+1, ly+1);
+            
             ctx.fillStyle = color;
             ctx.fillText(label, lx, ly);
         }
@@ -689,12 +690,21 @@
         }
 
         function onMouseDown(e) {
-            if (state.animating || state.is3D) return; // Disable drag in 3D for simplicity
-            
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
 
+            // 3D Mode: Camera Rotation
+            if (state.is3D) {
+                state.isRotating = true;
+                state.lastMx = mx;
+                state.lastMy = my;
+                return;
+            }
+
+            // 2D Mode: Dragging Vectors
+            if (state.animating) return;
+            
             if (isNear(mx, my, state.ix, state.iy)) state.dragging = 'i';
             else if (isNear(mx, my, state.jx, state.jy)) state.dragging = 'j';
             else {
@@ -706,17 +716,36 @@
         }
 
         function onMouseMove(e) {
-            if (state.animating) return;
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left;
             const my = e.clientY - rect.top;
 
+            // Handle 3D Rotation
+            if (state.is3D) {
+                if (state.isRotating) {
+                    const dx = mx - state.lastMx;
+                    const dy = my - state.lastMy;
+                    
+                    // Match Java sensitivity (0.01)
+                    state.cameraYaw += dx * 0.01;
+                    state.cameraPitch += dy * 0.01;
+                    
+                    // Clamp Pitch to avoid flipping (max +/- PI/2)
+                    const limit = Math.PI / 2 - 0.1;
+                    state.cameraPitch = Math.max(-limit, Math.min(limit, state.cameraPitch));
+
+                    state.lastMx = mx;
+                    state.lastMy = my;
+                    draw();
+                }
+                return;
+            }
+
+            // Handle 2D Dragging
+            if (state.animating) return;
+
             // Hover state
             if (!state.dragging) {
-                if(state.is3D) {
-                    canvas.style.cursor = 'default';
-                    return;
-                }
                 const ta = getTransformedA();
                 if (isNear(mx, my, state.ix, state.iy) || isNear(mx, my, state.jx, state.jy) || isNear(mx, my, ta.x, ta.y)) {
                     canvas.style.cursor = 'pointer';
@@ -726,12 +755,12 @@
                 return;
             }
 
-            // Dragging (2D only)
+            // Dragging Logic
             let mathPos = unproject2D(mx, my);
             let mathX = mathPos.x;
             let mathY = mathPos.y;
 
-            // Snap
+            // Snap to grid
             if (Math.abs(mathX - Math.round(mathX)) < 0.1) mathX = Math.round(mathX);
             if (Math.abs(mathY - Math.round(mathY)) < 0.1) mathY = Math.round(mathY);
 
@@ -740,7 +769,7 @@
             } else if (state.dragging === 'j') {
                 state.jx = mathX; state.jy = mathY;
             } else if (state.dragging === 'a') {
-                // Inverse solve for 2D
+                // Inverse solve for 2D to keep vector 'a' tip under mouse
                 const det = state.ix * state.jy - state.iy * state.jx;
                 if (Math.abs(det) > 0.0001) {
                     let newAx = (mathX * state.jy - mathY * state.jx) / det;
@@ -757,7 +786,10 @@
 
         function onMouseUp() {
             state.dragging = null;
-            if (!state.animating && !state.is3D) canvas.style.cursor = 'crosshair';
+            state.isRotating = false;
+            if (!state.animating) {
+                canvas.style.cursor = state.is3D ? 'move' : 'crosshair';
+            }
         }
 
         // --- Logic ---
@@ -774,7 +806,7 @@
             const ta = getTransformedA();
             lblDet.textContent = `Det: ${det.toFixed(2)}`;
             if(state.is3D) {
-                lblTrans.textContent = `T(a)=(${ta.x.toFixed(1)}, ${ta.y.toFixed(1)}, ${ta.z.toFixed(1)})`;
+                lblTrans.textContent = `T(a)=(${ta.x.toFixed(2)}, ${ta.y.toFixed(2)}, ${ta.z.toFixed(2)})`;
             } else {
                 lblTrans.textContent = `T(a)=(${ta.x.toFixed(2)}, ${ta.y.toFixed(2)})`;
             }
@@ -806,12 +838,18 @@
 
         function stopAnimation() {
             state.animating = false;
-            // Restore everything except view flags
+            // Restore everything except view flags and rotation
             const was3D = state.is3D;
             const wasDark = state.isDark;
+            const yaw = state.cameraYaw;
+            const pitch = state.cameraPitch;
+
             Object.assign(state, state.snap);
+            
             state.is3D = was3D;
             state.isDark = wasDark;
+            state.cameraYaw = yaw;
+            state.cameraPitch = pitch;
             
             updateUIFromState();
             updateInfo();
@@ -832,8 +870,6 @@
             const t = state.animProgress * state.animProgress * (3 - 2 * state.animProgress);
 
             // Interpolate towards Identity Matrix
-            // Identity in 2D: i=(1,0,0), j=(0,1,0), k=(0,0,1)
-            // Identity in 3D: same
             state.ix = lerp(state.snap.ix, 1.0, t);
             state.iy = lerp(state.snap.iy, 0.0, t);
             state.iz = lerp(state.snap.iz, 0.0, t);
