@@ -1,739 +1,655 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VecTor - 2D Vector Visualizer</title>
-    <style>
-        :root {
-            --bg-color: #ffffff;
-            --card-color: #f3f4f6;
-            --text-color: #1f2937;
-            --border-color: #e5e7eb;
-            --input-bg: #ffffff;
-            --grid-line: #e5e7eb;
-            --axis-line: #9ca3af;
-            
-            --color-i: #ef4444; /* Red */
-            --color-j: #22c55e; /* Green */
-            --color-a: #3b82f6; /* Blue */
-            --accent: #6366f1;
-        }
+package org.example;
 
-        [data-theme="dark"] {
-            --bg-color: #111827;
-            --card-color: #1f2937;
-            --text-color: #f3f4f6;
-            --border-color: #374151;
-            --input-bg: #374151;
-            --grid-line: #374151;
-            --axis-line: #4b5563;
-        }
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.geom.*;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; transition: background-color 0.3s, color 0.3s; }
-        
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            height: 100vh;
-            display: flex;
-            overflow: hidden;
-        }
+public class VectorVisualizer3D extends JDialog {
 
-        /* Sidebar */
-        .sidebar {
-            width: 380px;
-            background-color: var(--card-color);
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            border-right: 1px solid var(--border-color);
-            z-index: 10;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
-        }
+    // --- 3D Data Model (Z-Up System) ---
+    private double ix = 1.0, iy = 0.0, iz = 0.0;
+    private double jx = 0.0, jy = 1.0, jz = 0.0;
+    private double kx = 0.0, ky = 0.0, kz = 1.0;
+    private double ax = 1.0, ay = 1.0, az = 1.0;
 
-        h1 { font-size: 24px; margin-bottom: 20px; font-weight: 700; }
-        h2 { font-size: 16px; margin-bottom: 10px; font-weight: 600; opacity: 0.9; }
+    // --- Camera / View Defaults ---
+    private static final double SCALE = 80.0;
+    // Standard Isometric Angles
+    private static final double ISO_YAW = -Math.PI / 4; // -45 degrees
+    private static final double ISO_PITCH = Math.atan(1.0 / Math.sqrt(2)); // ~35.26 degrees
 
-        .section {
-            background-color: var(--bg-color);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
+    // --- UI Components ---
+    private ScenePanel canvas;
+    private JTextField txtIx, txtIy, txtIz;
+    private JTextField txtJx, txtJy, txtJz;
+    private JTextField txtKx, txtKy, txtKz;
+    private JTextField txtAx, txtAy, txtAz;
 
-        /* Matrix/Vector Brackets Styling */
-        .bracket-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            padding: 10px 15px;
-        }
-        
-        .bracket-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
+    private JButton btnPlay, btnStop;
+    private JLabel lblDeterminant, lblTransformed;
+    private boolean isUpdatingFromCode = false;
 
-        .vector-content {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-        }
+    // --- Animation Vars ---
+    private Timer animTimer;
+    private double animProgress = 0.0;
+    private double animDirection = 0.01;
+    private double sIx, sIy, sIz, sJx, sJy, sJz, sKx, sKy, sKz;
 
-        .bracket-border {
-            position: absolute;
-            top: 0; bottom: 0; left: 0; right: 0;
-            border: 2px solid #d1d5db; /* Neutral bracket color */
-            border-top: none;
-            border-bottom: none;
-            width: 100%;
-            pointer-events: none;
-        }
-        /* Create the hooks for brackets */
-        .bracket-border::before, .bracket-border::after {
-            content: ''; position: absolute; width: 10px; height: 2px; background: #d1d5db;
-        }
-        .bracket-border::before { top: 0; left: 0; }
-        .bracket-border::after { bottom: 0; left: 0; }
-        .bracket-border-right::before { top: 0; right: 0; left: auto; }
-        .bracket-border-right::after { bottom: 0; right: 0; left: auto; }
+    public VectorVisualizer3D(Window owner) {
+        super(owner, "VecTor 3D - Visualizzatore Matrici Spaziali",
+                (owner instanceof Dialog) ? ModalityType.APPLICATION_MODAL : ModalityType.MODELESS);
 
-        /* Input Fields */
-        .input-group {
-            display: flex;
-            align-items: center;
-        }
+        setSize(1300, 850);
+        setLocationRelativeTo(owner);
+        setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        setLayout(new BorderLayout());
 
-        .input-label {
-            font-weight: bold;
-            margin-right: 8px;
-            width: 25px;
-            font-size: 14px;
-        }
+        Color bgColor = MathEditorApp.getThemeColor("bg");
+        Color cardColor = MathEditorApp.getThemeColor("card");
+        getContentPane().setBackground(bgColor);
 
-        input[type="number"] {
-            width: 100%;
-            padding: 8px;
-            background-color: var(--input-bg);
-            border: 1px solid var(--border-color);
-            color: var(--text-color);
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            font-size: 16px;
-            text-align: center;
-            outline: none;
-        }
-        input[type="number"]:focus { border-color: var(--accent); }
+        JPanel leftPanel = createLeftPanel();
+        leftPanel.setBackground(cardColor);
+        add(leftPanel, BorderLayout.WEST);
 
-        /* Canvas Area */
-        .main-content {
-            flex: 1;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-        }
+        canvas = new ScenePanel();
+        add(canvas, BorderLayout.CENTER);
 
-        canvas {
-            flex: 1;
-            cursor: crosshair;
-            display: block;
-        }
+        JPanel bottomPanel = createBottomPanel();
+        bottomPanel.setBackground(cardColor);
+        add(bottomPanel, BorderLayout.SOUTH);
 
-        /* Bottom Panel */
-        .bottom-panel {
-            height: 70px;
-            background-color: var(--card-color);
-            border-top: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 30px;
-        }
+        setupTimer();
+    }
 
-        .info-labels {
-            display: flex;
-            gap: 20px;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            font-size: 14px;
-        }
+    private void setupTimer() {
+        animTimer = new Timer(16, e -> {
+            animProgress += animDirection;
 
-        .controls {
-            display: flex;
-            gap: 10px;
-        }
+            if (animProgress >= 1.0) {
+                animProgress = 1.0;
+                animDirection = -0.01;
+            } else if (animProgress <= 0.0) {
+                animProgress = 0.0;
+                animDirection = 0.01;
+            }
 
-        button {
-            background-color: var(--accent);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-weight: bold;
-            cursor: pointer;
-            font-size: 16px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
+            double t = animProgress * animProgress * (3 - 2 * animProgress);
 
-        button:hover { opacity: 0.9; }
-        button:disabled { background-color: var(--axis-line); cursor: not-allowed; }
+            ix = lerp(sIx, 1.0, t); iy = lerp(sIy, 0.0, t); iz = lerp(sIz, 0.0, t);
+            jx = lerp(sJx, 0.0, t); jy = lerp(sJy, 1.0, t); jz = lerp(sJz, 0.0, t);
+            kx = lerp(sKx, 0.0, t); ky = lerp(sKy, 0.0, t); kz = lerp(sKz, 1.0, t);
 
-        .theme-toggle {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 100;
-            background: var(--card-color);
-            color: var(--text-color);
-            padding: 8px;
-            border-radius: 50%;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
+            updateTextFields();
+            updateInfoLabels();
+            canvas.repaint();
+        });
+    }
 
-        /* Color Helpers */
-        .text-i { color: var(--color-i); }
-        .text-j { color: var(--color-j); }
-        .text-a { color: var(--color-a); }
+    private double lerp(double start, double end, double t) {
+        return start + (end - start) * t;
+    }
 
-        /* Responsive */
-        @media (max-width: 800px) {
-            body { flex-direction: column; overflow-y: auto; }
-            .sidebar { width: 100%; height: auto; order: 2; }
-            .main-content { height: 60vh; order: 1; }
-            canvas { height: 100%; }
-        }
-    </style>
-</head>
-<body>
+    private void startAnimation() {
+        if (animTimer.isRunning()) return;
+        sIx = ix; sIy = iy; sIz = iz;
+        sJx = jx; sJy = jy; sJz = jz;
+        sKx = kx; sKy = ky; sKz = kz;
 
-    <!-- Theme Toggle -->
-    <button class="theme-toggle" id="themeBtn" title="Toggle Dark Mode">🌓</button>
+        setInputsEnabled(false);
+        btnPlay.setEnabled(false);
+        btnStop.setEnabled(true);
+        animProgress = 0.0;
+        animDirection = 0.015;
+        animTimer.start();
+    }
 
-    <!-- Left Panel -->
-    <div class="sidebar">
-        <h1>Transformations</h1>
+    private void stopAnimation() {
+        if (!animTimer.isRunning() && btnPlay.isEnabled()) return;
+        animTimer.stop();
+        ix = sIx; iy = sIy; iz = sIz;
+        jx = sJx; jy = sJy; jz = sJz;
+        kx = sKx; ky = sKy; kz = sKz;
 
-        <!-- Matrix Section -->
-        <div class="section">
-            <h2>Matrix T</h2>
-            <div class="bracket-container">
-                <div class="bracket-border"></div>
-                <div class="bracket-border bracket-border-right">
-                     <span style="position:absolute; width:10px; height:2px; background:#d1d5db; top:0; right:0;"></span>
-                     <span style="position:absolute; width:10px; height:2px; background:#d1d5db; bottom:0; right:0;"></span>
-                </div>
-                
-                <div class="bracket-content">
-                    <div class="input-group">
-                        <span class="input-label text-i">i·x</span>
-                        <input type="number" id="txtIx" value="1.0" step="0.1">
-                    </div>
-                    <div class="input-group">
-                        <span class="input-label text-j">j·x</span>
-                        <input type="number" id="txtJx" value="0.0" step="0.1">
-                    </div>
-                    <div class="input-group">
-                        <span class="input-label text-i">i·y</span>
-                        <input type="number" id="txtIy" value="0.0" step="0.1">
-                    </div>
-                    <div class="input-group">
-                        <span class="input-label text-j">j·y</span>
-                        <input type="number" id="txtJy" value="1.0" step="0.1">
-                    </div>
-                </div>
-            </div>
-        </div>
+        updateTextFields();
+        updateInfoLabels();
+        canvas.repaint();
+        setInputsEnabled(true);
+        btnPlay.setEnabled(true);
+        btnStop.setEnabled(false);
+    }
 
-        <!-- Vector Section -->
-        <div class="section">
-            <h2>Input Vector (a)</h2>
-            <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-                <span style="font-family: serif; font-style: italic; font-size: 18px;">a = </span>
-                <div class="bracket-container">
-                    <div class="bracket-border"></div>
-                    <div class="bracket-border bracket-border-right">
-                        <span style="position:absolute; width:10px; height:2px; background:#d1d5db; top:0; right:0;"></span>
-                        <span style="position:absolute; width:10px; height:2px; background:#d1d5db; bottom:0; right:0;"></span>
-                   </div>
-                    <div class="vector-content">
-                        <div class="input-group">
-                            <span class="input-label text-a">x</span>
-                            <input type="number" id="txtAx" value="1.0" step="0.1">
-                        </div>
-                        <div class="input-group">
-                            <span class="input-label text-a">y</span>
-                            <input type="number" id="txtAy" value="1.0" step="0.1">
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    // --- UI Creation Methods (Same as before) ---
+    private JPanel createLeftPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setPreferredSize(new Dimension(420, 0));
+        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
 
-    <!-- Main Canvas Area -->
-    <div class="main-content">
-        <canvas id="canvas"></canvas>
-        
-        <div class="bottom-panel">
-            <div class="info-labels">
-                <span id="lblDeterminant">Det: 1.00</span>
-                <span style="border-left: 1px solid var(--border-color); margin: 0 10px;"></span>
-                <span id="lblTransformed">T(a) = (1.00, 1.00)</span>
-            </div>
-            <div class="controls">
-                <button id="btnPlay">▶ Play</button>
-                <button id="btnStop" disabled>■ Stop</button>
-            </div>
-        </div>
-    </div>
+        Color bg = MathEditorApp.getThemeColor("bg");
+        Color text = MathEditorApp.getThemeColor("text");
+        Color card = MathEditorApp.getThemeColor("card");
+        panel.setBackground(bg);
 
-    <script>
-        // State
-        const state = {
-            ix: 1.0, iy: 0.0,
-            jx: 0.0, jy: 1.0,
-            ax: 1.0, ay: 1.0,
-            scale: 50,
-            isDark: false,
-            dragging: null, // 'i', 'j', or 'a'
-            animating: false,
-            animProgress: 0,
-            animDirection: 0.015,
-            snap: {} // snapshot for animation reset
+        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        header.setBackground(card);
+        header.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel title = new JLabel("Trasformazioni 3D");
+        title.setFont(new Font("SansSerif", Font.BOLD, 24));
+        title.setForeground(text);
+        header.add(title);
+
+        panel.add(header);
+        panel.add(Box.createVerticalStrut(20));
+
+        panel.add(createMatrixSection(text, card));
+        panel.add(Box.createVerticalStrut(15));
+        panel.add(createVectorSection(text, card));
+        panel.add(Box.createVerticalGlue());
+
+        return panel;
+    }
+
+    private JPanel createMatrixSection(Color text, Color card) {
+        JPanel section = createSectionPanel(card, "Matrice T (3x3)", text);
+        Color bgColor = MathEditorApp.getThemeColor("bg");
+
+        JPanel matrixContainer = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        matrixContainer.setBackground(card);
+
+        JPanel matrixContent = new JPanel(new GridLayout(3, 3, 8, 8));
+        matrixContent.setBackground(card);
+
+        Color colI = new Color(239, 68, 68); // Red
+        Color colJ = new Color(34, 197, 94); // Green
+        Color colK = new Color(60, 160, 240); // Blue
+
+        txtIx = createField(ix, text, card);
+        txtJx = createField(jx, text, card);
+        txtKx = createField(kx, text, card);
+        matrixContent.add(createLabeledField(txtIx, "i·x", colI, card));
+        matrixContent.add(createLabeledField(txtJx, "j·x", colJ, card));
+        matrixContent.add(createLabeledField(txtKx, "k·x", colK, card));
+
+        txtIy = createField(iy, text, card);
+        txtJy = createField(jy, text, card);
+        txtKy = createField(ky, text, card);
+        matrixContent.add(createLabeledField(txtIy, "i·y", colI, card));
+        matrixContent.add(createLabeledField(txtJy, "j·y", colJ, card));
+        matrixContent.add(createLabeledField(txtKy, "k·y", colK, card));
+
+        txtIz = createField(iz, text, card);
+        txtJz = createField(jz, text, card);
+        txtKz = createField(kz, text, card);
+        matrixContent.add(createLabeledField(txtIz, "i·z", colI, card));
+        matrixContent.add(createLabeledField(txtJz, "j·z", colJ, card));
+        matrixContent.add(createLabeledField(txtKz, "k·z", colK, card));
+
+        BracketPanel bracketPanel = new BracketPanel(matrixContent, bgColor, card);
+        matrixContainer.add(bracketPanel);
+        section.add(matrixContainer, BorderLayout.CENTER);
+
+        addDocListeners(txtIx, txtIy, txtIz, txtJx, txtJy, txtJz, txtKx, txtKy, txtKz);
+        return section;
+    }
+
+    private JPanel createVectorSection(Color text, Color card) {
+        JPanel section = createSectionPanel(card, "Vettore Input (a)", text);
+
+        JPanel vectorContainer = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        vectorContainer.setBackground(card);
+        vectorContainer.setBorder(new EmptyBorder(10, 0, 0, 0));
+
+        JLabel vectorName = new JLabel("<html><i style='font-size:18px; font-family:serif'>a</i> =</html>");
+        vectorName.setForeground(text);
+
+        JPanel vectorContent = new JPanel(new GridLayout(3, 1, 0, 8));
+        vectorContent.setBackground(card);
+
+        txtAx = createField(ax, text, card);
+        txtAy = createField(ay, text, card);
+        txtAz = createField(az, text, card);
+
+        Color vecCol = new Color(245, 158, 11);
+        vectorContent.add(createLabeledField(txtAx, "x", vecCol, card));
+        vectorContent.add(createLabeledField(txtAy, "y", vecCol, card));
+        vectorContent.add(createLabeledField(txtAz, "z", vecCol, card));
+
+        BracketPanel bracketPanel = new BracketPanel(vectorContent, card, card);
+        vectorContainer.add(vectorName);
+        vectorContainer.add(bracketPanel);
+
+        section.add(vectorContainer, BorderLayout.CENTER);
+        addDocListeners(txtAx, txtAy, txtAz);
+        return section;
+    }
+
+    private JPanel createBottomPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        Color cardColor = MathEditorApp.getThemeColor("card");
+        Color borderColor = MathEditorApp.getThemeColor("border");
+        panel.setBackground(cardColor);
+        panel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, borderColor));
+
+        JPanel infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 10));
+        infoPanel.setBackground(cardColor);
+
+        lblDeterminant = createInfoLabel("Det: 1.00");
+        lblTransformed = createInfoLabel("T(a) = (1.00, 1.00, 1.00)");
+
+        infoPanel.add(lblDeterminant);
+        infoPanel.add(new JSeparator(SwingConstants.VERTICAL));
+        infoPanel.add(lblTransformed);
+
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
+        controlPanel.setBackground(cardColor);
+
+        btnPlay = createAnimButton("▶", "Avvia Animazione");
+        btnStop = createAnimButton("■", "Ferma e Ripristina");
+        btnStop.setEnabled(false);
+
+        btnPlay.addActionListener(e -> startAnimation());
+        btnStop.addActionListener(e -> stopAnimation());
+
+        controlPanel.add(btnPlay);
+        controlPanel.add(btnStop);
+        panel.add(infoPanel, BorderLayout.WEST);
+        panel.add(controlPanel, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel createSectionPanel(Color card, String titleStr, Color text) {
+        JPanel section = new JPanel(new BorderLayout());
+        section.setBackground(card);
+        section.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(0,0,0,20), 1),
+                new EmptyBorder(15, 15, 15, 15)
+        ));
+        JLabel title = new JLabel(titleStr);
+        title.setFont(new Font("SansSerif", Font.BOLD, 16));
+        title.setForeground(text);
+        section.add(title, BorderLayout.NORTH);
+        return section;
+    }
+
+    private JTextField createField(double val, Color textColor, Color cardColor) {
+        JTextField f = new JTextField(String.valueOf(val));
+        f.setForeground(textColor);
+        f.setCaretColor(textColor);
+        boolean isDark = (cardColor.getRed() + cardColor.getGreen() + cardColor.getBlue()) / 3 < 128;
+        Color inputBg = isDark ? new Color(cardColor.getRed()+20, cardColor.getGreen()+20, cardColor.getBlue()+20) : new Color(245, 245, 245);
+        f.setBackground(inputBg);
+        f.setPreferredSize(new Dimension(70, 35));
+        f.setFont(new Font("Monospaced", Font.BOLD, 14));
+        f.setHorizontalAlignment(JTextField.CENTER);
+        f.setBorder(BorderFactory.createLineBorder(new Color(textColor.getRed(), textColor.getGreen(), textColor.getBlue(), 50), 1));
+        return f;
+    }
+
+    private JPanel createLabeledField(JTextField field, String label, Color labelColor, Color bg) {
+        JPanel container = new JPanel(new BorderLayout(5, 0));
+        container.setBackground(bg);
+        JLabel lbl = new JLabel(label);
+        lbl.setForeground(labelColor);
+        lbl.setFont(new Font("SansSerif", Font.BOLD, 12));
+        lbl.setPreferredSize(new Dimension(25, 35));
+        lbl.setHorizontalAlignment(SwingConstants.RIGHT);
+        container.add(lbl, BorderLayout.WEST);
+        container.add(field, BorderLayout.CENTER);
+        return container;
+    }
+
+    private JLabel createInfoLabel(String text) {
+        Color textColor = MathEditorApp.getThemeColor("text");
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Monospace", Font.BOLD, 13));
+        label.setForeground(textColor);
+        return label;
+    }
+
+    private JButton createAnimButton(String symbol, String tooltip) {
+        Color accentColor = new Color(99, 102, 241);
+        Color accentHover = new Color(79, 82, 221);
+        JButton btn = new JButton(symbol);
+        btn.setFont(new Font("SansSerif", Font.BOLD, 16));
+        btn.setForeground(Color.WHITE);
+        btn.setBackground(accentColor);
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.setPreferredSize(new Dimension(100, 35));
+        btn.setToolTipText(tooltip);
+        btn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) { if (btn.isEnabled()) btn.setBackground(accentHover); }
+            public void mouseExited(MouseEvent e) { btn.setBackground(accentColor); }
+        });
+        return btn;
+    }
+
+    private void addDocListeners(JTextField... fields) {
+        DocumentListener dl = new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { updateFromFields(); }
+            public void removeUpdate(DocumentEvent e) { updateFromFields(); }
+            public void changedUpdate(DocumentEvent e) { updateFromFields(); }
         };
+        for (JTextField f : fields) f.getDocument().addDocumentListener(dl);
+    }
 
-        // DOM Elements
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const inputs = {
-            ix: document.getElementById('txtIx'),
-            iy: document.getElementById('txtIy'),
-            jx: document.getElementById('txtJx'),
-            jy: document.getElementById('txtJy'),
-            ax: document.getElementById('txtAx'),
-            ay: document.getElementById('txtAy')
-        };
-        const lblDet = document.getElementById('lblDeterminant');
-        const lblTrans = document.getElementById('lblTransformed');
-        const btnPlay = document.getElementById('btnPlay');
-        const btnStop = document.getElementById('btnStop');
-        const themeBtn = document.getElementById('themeBtn');
+    private void setInputsEnabled(boolean enabled) {
+        txtIx.setEnabled(enabled); txtIy.setEnabled(enabled); txtIz.setEnabled(enabled);
+        txtJx.setEnabled(enabled); txtJy.setEnabled(enabled); txtJz.setEnabled(enabled);
+        txtKx.setEnabled(enabled); txtKy.setEnabled(enabled); txtKz.setEnabled(enabled);
+        txtAx.setEnabled(enabled); txtAy.setEnabled(enabled); txtAz.setEnabled(enabled);
+    }
 
-        // Initialization
-        function init() {
-            resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
+    private void updateFromFields() {
+        if (isUpdatingFromCode || (animTimer != null && animTimer.isRunning())) return;
+        try {
+            ix = parse(txtIx.getText()); iy = parse(txtIy.getText()); iz = parse(txtIz.getText());
+            jx = parse(txtJx.getText()); jy = parse(txtJy.getText()); jz = parse(txtJz.getText());
+            kx = parse(txtKx.getText()); ky = parse(txtKy.getText()); kz = parse(txtKz.getText());
+            ax = parse(txtAx.getText()); ay = parse(txtAy.getText()); az = parse(txtAz.getText());
+            updateInfoLabels();
+            if (canvas != null) canvas.repaint();
+        } catch (NumberFormatException ignored) {}
+    }
+
+    private void updateTextFields() {
+        isUpdatingFromCode = true;
+        DecimalFormat df = new DecimalFormat("0.##", new DecimalFormatSymbols(Locale.US));
+        txtIx.setText(df.format(ix)); txtIy.setText(df.format(iy)); txtIz.setText(df.format(iz));
+        txtJx.setText(df.format(jx)); txtJy.setText(df.format(jy)); txtJz.setText(df.format(jz));
+        txtKx.setText(df.format(kx)); txtKy.setText(df.format(ky)); txtKz.setText(df.format(kz));
+        txtAx.setText(df.format(ax)); txtAy.setText(df.format(ay)); txtAz.setText(df.format(az));
+        isUpdatingFromCode = false;
+    }
+
+    private void updateInfoLabels() {
+        double det = ix*(jy*kz - jz*ky) - iy*(jx*kz - jz*kx) + iz*(jx*ky - jy*kx);
+        Point3D t = getTransformedA();
+        DecimalFormat df = new DecimalFormat("0.00", new DecimalFormatSymbols(Locale.US));
+        lblDeterminant.setText("Det: " + df.format(det));
+        lblTransformed.setText("T(a) = (" + df.format(t.x) + ", " + df.format(t.y) + ", " + df.format(t.z) + ")");
+    }
+
+    private double parse(String s) {
+        if (s == null || s.trim().isEmpty() || s.equals("-")) return 0;
+        return Double.parseDouble(s.replace(",", "."));
+    }
+
+    private Point3D getTransformedA() {
+        double tx = ax * ix + ay * jx + az * kx;
+        double ty = ax * iy + ay * jy + az * ky;
+        double tz = ax * iz + ay * jz + az * kz;
+        return new Point3D(tx, ty, tz);
+    }
+
+    // --- Data Classes ---
+    private static class Point3D {
+        double x, y, z;
+        Point3D(double x, double y, double z) { this.x=x; this.y=y; this.z=z; }
+    }
+
+    private static class Point2D {
+        double x, y;
+        Point2D(double x, double y) { this.x=x; this.y=y; }
+    }
+
+    // --- Main Canvas Inner Class ---
+    private class ScenePanel extends JPanel {
+        // Camera State
+        private double cameraPitch = 0.4;
+        private double cameraYaw = -0.6;
+        private int lastMx, lastMy;
+        
+        // Smart View Toggle
+        private final JButton btnViewToggle;
+        private boolean isIsometric = false;
+        private Timer viewAnimTimer;
+        private double targetYaw, targetPitch;
+
+        public ScenePanel() {
+            // Setup Background
+            setBackground(MathEditorApp.isDarkMode() ? new Color(20, 22, 26) : Color.WHITE);
+            setLayout(null); // Absolute layout for overlay button
             
-            // Input Listeners
-            Object.keys(inputs).forEach(key => {
-                inputs[key].addEventListener('input', (e) => {
-                    const val = parseFloat(e.target.value);
-                    if (!isNaN(val)) {
-                        state[key] = val;
-                        updateInfo();
-                        draw();
+            // --- View Toggle Button ---
+            btnViewToggle = new JButton("Isometric");
+            btnViewToggle.setFocusPainted(false);
+            btnViewToggle.setBackground(new Color(255, 255, 255, 200));
+            btnViewToggle.setFont(new Font("SansSerif", Font.BOLD, 11));
+            btnViewToggle.setMargin(new Insets(2, 8, 2, 8));
+            btnViewToggle.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            btnViewToggle.setBounds(10, 10, 100, 25);
+            btnViewToggle.addActionListener(e -> toggleViewMode());
+            add(btnViewToggle);
+
+            // --- Mouse Interaction ---
+            MouseAdapter ma = new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    lastMx = e.getX();
+                    lastMy = e.getY();
+                    setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                }
+
+                @Override
+                public void mouseDragged(MouseEvent e) {
+                    // SMART FEATURE: If user drags while in Iso mode, break back to Free 3D
+                    if (isIsometric) {
+                        isIsometric = false;
+                        if (viewAnimTimer != null && viewAnimTimer.isRunning()) viewAnimTimer.stop();
+                        btnViewToggle.setText("Free 3D");
                     }
-                });
+
+                    int dx = e.getX() - lastMx;
+                    int dy = e.getY() - lastMy;
+                    cameraYaw += dx * 0.01;
+                    cameraPitch += dy * 0.01;
+                    cameraPitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, cameraPitch));
+                    lastMx = e.getX();
+                    lastMy = e.getY();
+                    repaint();
+                }
+
+                @Override
+                public void mouseReleased(MouseEvent e) {
+                   setCursor(Cursor.getDefaultCursor());
+                }
+            };
+            addMouseListener(ma);
+            addMouseMotionListener(ma);
+            
+            // Adjust button color on theme change or init
+            if (MathEditorApp.isDarkMode()) {
+                btnViewToggle.setBackground(new Color(60, 60, 60, 200));
+                btnViewToggle.setForeground(Color.WHITE);
+            }
+        }
+
+        // --- View Animation Logic ---
+        private void toggleViewMode() {
+            isIsometric = !isIsometric;
+            
+            if (isIsometric) {
+                // Animate to Fixed Isometric Angles
+                btnViewToggle.setText("Isometric");
+                startCameraAnimation(ISO_YAW, ISO_PITCH);
+            } else {
+                // Switch to Free Mode (just update label, keep current angles)
+                btnViewToggle.setText("Free 3D");
+            }
+        }
+
+        private void startCameraAnimation(double destYaw, double destPitch) {
+            if (viewAnimTimer != null && viewAnimTimer.isRunning()) viewAnimTimer.stop();
+            
+            // Normalize current yaw to avoid spinning 360 degrees unnecessarily
+            // (Optional optimization omitted for brevity, simple Lerp here)
+            
+            viewAnimTimer = new Timer(15, new ActionListener() {
+                double t = 0;
+                double startYaw = cameraYaw;
+                double startPitch = cameraPitch;
+
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    t += 0.05; // Speed
+                    if (t >= 1.0) {
+                        t = 1.0;
+                        cameraYaw = destYaw;
+                        cameraPitch = destPitch;
+                        viewAnimTimer.stop();
+                    } else {
+                        // Smooth step interpolation
+                        double smoothT = t * t * (3 - 2 * t); 
+                        cameraYaw = startYaw + (destYaw - startYaw) * smoothT;
+                        cameraPitch = startPitch + (destPitch - startPitch) * smoothT;
+                    }
+                    repaint();
+                }
             });
-
-            // Theme Listener
-            // Check system preference first
-            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                toggleTheme();
-            }
-            themeBtn.addEventListener('click', toggleTheme);
-
-            // Canvas Mouse Listeners
-            canvas.addEventListener('mousedown', onMouseDown);
-            canvas.addEventListener('mousemove', onMouseMove);
-            window.addEventListener('mouseup', onMouseUp); // Window to catch release outside canvas
-            
-            // Animation Listeners
-            btnPlay.addEventListener('click', startAnimation);
-            btnStop.addEventListener('click', stopAnimation);
-
-            draw();
+            viewAnimTimer.start();
         }
 
-        // --- Drawing Logic ---
-
-        function resizeCanvas() {
-            const parent = canvas.parentElement;
-            canvas.width = parent.clientWidth;
-            canvas.height = parent.clientHeight - 70; // Subtract bottom panel height
-            draw();
+        private Point2D project(double x, double y, double z) {
+            double x_yaw = x * Math.cos(cameraYaw) - y * Math.sin(cameraYaw);
+            double y_yaw = x * Math.sin(cameraYaw) + y * Math.cos(cameraYaw);
+            double y_pitch = y_yaw * Math.cos(cameraPitch) - z * Math.sin(cameraPitch);
+            double z_pitch = y_yaw * Math.sin(cameraPitch) + z * Math.cos(cameraPitch);
+            double scale = SCALE;
+            int cx = getWidth() / 2;
+            int cy = getHeight() / 2;
+            return new Point2D(cx + x_yaw * scale, cy - z_pitch * scale);
         }
 
-        function toScreenX(mathX) {
-            return canvas.width / 2 + (mathX * state.scale);
+        private Point3D applyTransform(double u, double v, double w) {
+            return new Point3D(
+                    u * ix + v * jx + w * kx,
+                    u * iy + v * jy + w * ky,
+                    u * iz + v * jz + w * kz
+            );
         }
 
-        function toScreenY(mathY) {
-            return canvas.height / 2 - (mathY * state.scale);
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            boolean dark = MathEditorApp.isDarkMode();
+
+            drawTransformedGrid(g2, dark);
+
+            drawVector3D(g2, 0, 0, 0, ix, iy, iz, new Color(239, 68, 68), "i");
+            drawVector3D(g2, 0, 0, 0, jx, jy, jz, new Color(34, 197, 94), "j");
+            drawVector3D(g2, 0, 0, 0, kx, ky, kz, new Color(59, 130, 246), "k");
+
+            Point3D r = getTransformedA();
+            drawVector3D(g2, 0, 0, 0, r.x, r.y, r.z, new Color(245, 158, 11), "a");
+
+            Point2D origin = project(0, 0, 0);
+            g2.setColor(dark ? Color.WHITE : Color.BLACK);
+            g2.fillOval((int) origin.x - 3, (int) origin.y - 3, 6, 6);
+
+            // Instructions
+            g2.setColor(Color.GRAY);
+            g2.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            String modeText = isIsometric ? "Mode: Isometric (Locked)" : "Mode: Free 3D (Drag to Rotate)";
+            g2.drawString(modeText, 10, getHeight() - 10);
         }
 
-        function toMathX(screenX) {
-            return (screenX - canvas.width / 2) / state.scale;
-        }
-
-        function toMathY(screenY) {
-            return (canvas.height / 2 - screenY) / state.scale;
-        }
-
-        function getTransformedA() {
-            return {
-                x: state.ax * state.ix + state.ay * state.jx,
-                y: state.ax * state.iy + state.ay * state.jy
-            };
-        }
-
-        function draw() {
-            const w = canvas.width;
-            const h = canvas.height;
-            const cx = w / 2;
-            const cy = h / 2;
-            const style = getComputedStyle(document.body);
-            
-            // Clear
-            ctx.clearRect(0, 0, w, h);
-
-            // Config colors based on CSS vars
-            const gridColor = state.isDark ? '#374151' : '#e5e7eb';
-            const axisColor = state.isDark ? '#4b5563' : '#9ca3af';
-            const colorI = style.getPropertyValue('--color-i').trim();
-            const colorJ = style.getPropertyValue('--color-j').trim();
-            const colorA = style.getPropertyValue('--color-a').trim();
-
-            // Draw Grid
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = gridColor;
-            
-            // Transformed Grid lines
-            const range = 20;
-            
-            // Helper to draw line
-            const drawLine = (x1, y1, x2, y2, color, width = 1, dash = []) => {
-                ctx.beginPath();
-                ctx.moveTo(toScreenX(x1), toScreenY(y1));
-                ctx.lineTo(toScreenX(x2), toScreenY(y2));
-                ctx.strokeStyle = color;
-                ctx.lineWidth = width;
-                ctx.setLineDash(dash);
-                ctx.stroke();
-                ctx.setLineDash([]);
-            };
-
-            // Transformed Grid
-            for (let k = -range; k <= range; k++) {
-                if (k === 0) continue;
-                // Horizontal-ish lines (parallel to i)
-                const x1 = -range * state.ix + k * state.jx;
-                const y1 = -range * state.iy + k * state.jy;
-                const x2 = range * state.ix + k * state.jx;
-                const y2 = range * state.iy + k * state.jy;
-                drawLine(x1, y1, x2, y2, gridColor);
-
-                // Vertical-ish lines (parallel to j)
-                const vx1 = k * state.ix - range * state.jx;
-                const vy1 = k * state.iy - range * state.jy;
-                const vx2 = k * state.ix + range * state.jx;
-                const vy2 = k * state.iy + range * state.jy;
-                drawLine(vx1, vy1, vx2, vy2, gridColor);
-            }
-
-            // Axes (Screen center)
-            ctx.beginPath();
-            ctx.strokeStyle = axisColor;
-            ctx.lineWidth = 2;
-            ctx.moveTo(0, cy); ctx.lineTo(w, cy);
-            ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
-            ctx.stroke();
-
-            // Dashed Boxes (Unit squares)
-            const boxColorI = colorI + '55'; // Transparent
-            const boxColorJ = colorJ + '55';
-            drawLine(-range*state.ix, -range*state.iy, range*state.ix, range*state.iy, boxColorI, 1.5, [8, 8]);
-            drawLine(-range*state.jx, -range*state.jy, range*state.jx, range*state.jy, boxColorJ, 1.5, [8, 8]);
-
-            // Vectors
-            drawVector(state.ix, state.iy, colorI, "i");
-            drawVector(state.jx, state.jy, colorJ, "j");
-            
-            const ta = getTransformedA();
-            drawVector(ta.x, ta.y, colorA, "a");
-
-            // Origin Point
-            ctx.fillStyle = state.isDark ? '#e5e5e5' : '#333';
-            ctx.beginPath();
-            ctx.arc(cx, cy, 4, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Animation Indicator
-            if (state.animating) {
-                ctx.fillStyle = colorI;
-                ctx.font = "bold 12px sans-serif";
-                ctx.beginPath();
-                ctx.arc(w - 90, h - 20, 5, 0, Math.PI*2);
-                ctx.fill();
-                ctx.fillText("ANIMATION", w - 80, h - 16);
+        private void drawTransformedGrid(Graphics2D g2, boolean dark) {
+            Color gridCol = dark ? new Color(70, 75, 85, 100) : new Color(200, 200, 200, 150);
+            Color axisCol = dark ? new Color(150, 150, 150, 180) : new Color(100, 100, 100, 180);
+            g2.setStroke(new BasicStroke(1f));
+            int range = 5;
+            for (int n = -range; n <= range; n++) {
+                g2.setColor(n == 0 ? axisCol : gridCol);
+                g2.setStroke(new BasicStroke(n == 0 ? 2f : 1f));
+                Point3D pStart = applyTransform(-range, n, 0);
+                Point3D pEnd   = applyTransform(range, n, 0);
+                Point2D s2d = project(pStart.x, pStart.y, pStart.z);
+                Point2D e2d = project(pEnd.x, pEnd.y, pEnd.z);
+                g2.drawLine((int)s2d.x, (int)s2d.y, (int)e2d.x, (int)e2d.y);
+                Point3D qStart = applyTransform(n, -range, 0);
+                Point3D qEnd   = applyTransform(n, range, 0);
+                Point2D qs2d = project(qStart.x, qStart.y, qStart.z);
+                Point2D qe2d = project(qEnd.x, qEnd.y, qEnd.z);
+                g2.drawLine((int)qs2d.x, (int)qs2d.y, (int)qe2d.x, (int)qe2d.y);
             }
         }
 
-        function drawVector(vx, vy, color, label) {
-            const sx = toScreenX(vx);
-            const sy = toScreenY(vy);
-            const cx = canvas.width / 2;
-            const cy = canvas.height / 2;
-
-            const angle = Math.atan2(sy - cy, sx - cx);
-            const headLen = 12;
-            const lineEndLen = 6;
-
-            // Shortened line end so arrowhead fits nicely
-            const ex = sx - lineEndLen * Math.cos(angle);
-            const ey = sy - lineEndLen * Math.sin(angle);
-
-            // Shadow
-            ctx.beginPath();
-            ctx.moveTo(cx+2, cy+2);
-            ctx.lineTo(ex+2, ey+2);
-            ctx.strokeStyle = "rgba(0,0,0,0.15)";
-            ctx.lineWidth = 4;
-            ctx.lineCap = "round";
-            ctx.stroke();
-
-            // Line
-            ctx.beginPath();
-            ctx.moveTo(cx, cy);
-            ctx.lineTo(ex, ey);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 3.5;
-            ctx.stroke();
-
-            // Arrow Head
-            ctx.beginPath();
-            ctx.moveTo(sx, sy);
-            ctx.lineTo(sx - headLen * Math.cos(angle - Math.PI / 6), sy - headLen * Math.sin(angle - Math.PI / 6));
-            ctx.lineTo(sx - headLen * Math.cos(angle + Math.PI / 6), sy - headLen * Math.sin(angle + Math.PI / 6));
-            ctx.closePath();
-            ctx.fillStyle = color;
-            ctx.fill();
-
-            // Label
-            ctx.font = "bold 15px sans-serif";
-            const metrics = ctx.measureText(label);
-            const lx = sx + 12;
-            const ly = sy - 8;
-            
-            // Label bg
-            ctx.fillStyle = color + "33"; // 20% opacity
-            ctx.fillRect(lx - 4, ly - 15, metrics.width + 8, 20);
-            
-            ctx.fillStyle = color;
-            ctx.fillText(label, lx, ly);
-        }
-
-        // --- Interaction ---
-
-        function isNear(mx, my, vx, vy) {
-            const sx = toScreenX(vx);
-            const sy = toScreenY(vy);
-            const dist = (mx - sx)**2 + (my - sy)**2;
-            return dist < 225; // 15px radius squared
-        }
-
-        function onMouseDown(e) {
-            if (state.animating) return;
-            const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
-
-            // Check basis vectors first
-            if (isNear(mx, my, state.ix, state.iy)) state.dragging = 'i';
-            else if (isNear(mx, my, state.jx, state.jy)) state.dragging = 'j';
-            else {
-                const ta = getTransformedA();
-                if (isNear(mx, my, ta.x, ta.y)) state.dragging = 'a';
+        private void drawVector3D(Graphics2D g2, double x0, double y0, double z0,
+                                  double x1, double y1, double z1, Color c, String label) {
+            Point2D start = project(x0, y0, z0);
+            Point2D end = project(x1, y1, z1);
+            if (Math.abs(z1) > 0.05) {
+                Point2D floorPt = project(x1, y1, 0);
+                g2.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 60));
+                g2.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[]{4.0f}, 0.0f));
+                g2.drawLine((int)end.x, (int)end.y, (int)floorPt.x, (int)floorPt.y);
+                g2.fillOval((int)floorPt.x-2, (int)floorPt.y-2, 4, 4);
             }
+            g2.setColor(c);
+            g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawLine((int)start.x, (int)start.y, (int)end.x, (int)end.y);
+            double angle = Math.atan2(end.y - start.y, end.x - start.x);
+            int arrowSize = 10;
+            Path2D arrow = new Path2D.Double();
+            arrow.moveTo(end.x, end.y);
+            arrow.lineTo(end.x - arrowSize * Math.cos(angle - Math.PI / 6), end.y - arrowSize * Math.sin(angle - Math.PI / 6));
+            arrow.lineTo(end.x - arrowSize * Math.cos(angle + Math.PI / 6), end.y - arrowSize * Math.sin(angle + Math.PI / 6));
+            arrow.closePath();
+            g2.fill(arrow);
+            g2.setFont(new Font("SansSerif", Font.BOLD, 14));
+            int tx = (int)end.x + 8;
+            int ty = (int)end.y - 8;
+            g2.setColor(new Color(MathEditorApp.isDarkMode() ? 0 : 255, MathEditorApp.isDarkMode() ? 0 : 255, MathEditorApp.isDarkMode() ? 0 : 255, 120));
+            g2.drawString(label, tx + 1, ty + 1);
+            g2.setColor(c);
+            g2.drawString(label, tx, ty);
+        }
+    }
 
-            if (state.dragging) {
-                canvas.style.cursor = 'move';
-            }
+    static class BracketPanel extends JPanel {
+        private final JComponent content;
+        private final Color bracketColor;
+
+        public BracketPanel(JComponent content, Color bracketColor, Color backgroundColor) {
+            this.content = content;
+            this.bracketColor = new Color(180, 180, 180);
+            setLayout(new BorderLayout());
+            setBackground(backgroundColor);
+            setBorder(new EmptyBorder(5, 15, 5, 15));
+            add(content, BorderLayout.CENTER);
         }
 
-        function onMouseMove(e) {
-            const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
-
-            if (state.animating) return;
-
-            // Cursor hover effect
-            if (!state.dragging) {
-                const ta = getTransformedA();
-                if (isNear(mx, my, state.ix, state.iy) || 
-                    isNear(mx, my, state.jx, state.jy) || 
-                    isNear(mx, my, ta.x, ta.y)) {
-                    canvas.style.cursor = 'pointer';
-                } else {
-                    canvas.style.cursor = 'crosshair';
-                }
-                return;
-            }
-
-            // Dragging logic
-            let mathX = toMathX(mx);
-            let mathY = toMathY(my);
-
-            // Snap to grid (0.1 proximity)
-            if (Math.abs(mathX - Math.round(mathX)) < 0.1) mathX = Math.round(mathX);
-            if (Math.abs(mathY - Math.round(mathY)) < 0.1) mathY = Math.round(mathY);
-
-            if (state.dragging === 'i') {
-                state.ix = mathX;
-                state.iy = mathY;
-            } else if (state.dragging === 'j') {
-                state.jx = mathX;
-                state.jy = mathY;
-            } else if (state.dragging === 'a') {
-                // Calculate original 'a' based on inverse matrix
-                const det = state.ix * state.jy - state.iy * state.jx;
-                if (Math.abs(det) > 0.0001) {
-                    let newAx = (mathX * state.jy - mathY * state.jx) / det;
-                    let newAy = (mathX * -state.iy + mathY * state.ix) / det;
-                    
-                    if (Math.abs(newAx - Math.round(newAx)) < 0.1) newAx = Math.round(newAx);
-                    if (Math.abs(newAy - Math.round(newAy)) < 0.1) newAy = Math.round(newAy);
-                    
-                    state.ax = newAx;
-                    state.ay = newAy;
-                }
-            }
-
-            updateUIFromState();
-            updateInfo();
-            draw();
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(bracketColor);
+            g2.setStroke(new BasicStroke(2.0f));
+            int w = getWidth();
+            int h = getHeight();
+            int bW = 10;
+            int gap = 2;
+            g2.drawLine(gap + bW, gap, gap, gap);
+            g2.drawLine(gap, gap, gap, h - gap);
+            g2.drawLine(gap, h - gap, gap + bW, h - gap);
+            g2.drawLine(w - gap - bW, gap, w - gap, gap);
+            g2.drawLine(w - gap, gap, w - gap, h - gap);
+            g2.drawLine(w - gap, h - gap, w - gap - bW, h - gap);
         }
-
-        function onMouseUp() {
-            state.dragging = null;
-            if (!state.animating) canvas.style.cursor = 'crosshair';
-        }
-
-        // --- Logic & Helper ---
-
-        function updateUIFromState() {
-            inputs.ix.value = format(state.ix);
-            inputs.iy.value = format(state.iy);
-            inputs.jx.value = format(state.jx);
-            inputs.jy.value = format(state.jy);
-            inputs.ax.value = format(state.ax);
-            inputs.ay.value = format(state.ay);
-        }
-
-        function updateInfo() {
-            const det = state.ix * state.jy - state.iy * state.jx;
-            const ta = getTransformedA();
-            lblDet.textContent = `Det: ${det.toFixed(2)}`;
-            lblTrans.textContent = `T(a) = (${ta.x.toFixed(2)}, ${ta.y.toFixed(2)})`;
-        }
-
-        function format(num) {
-            return parseFloat(num.toFixed(2));
-        }
-
-        function toggleTheme() {
-            state.isDark = !state.isDark;
-            document.body.setAttribute('data-theme', state.isDark ? 'dark' : 'light');
-            themeBtn.textContent = state.isDark ? '☀️' : '🌓';
-            draw();
-        }
-
-        // --- Animation ---
-
-        function lerp(start, end, t) {
-            return start + (end - start) * t;
-        }
-
-        function startAnimation() {
-            if (state.animating) return;
-            
-            // Save state
-            state.snap = { ix: state.ix, iy: state.iy, jx: state.jx, jy: state.jy };
-            
-            state.animating = true;
-            state.animProgress = 0;
-            state.animDirection = 0.015;
-            
-            // Disable Inputs
-            setInputsEnabled(false);
-            btnPlay.disabled = true;
-            btnStop.disabled = false;
-
-            animateFrame();
-        }
-
-        function stopAnimation() {
-            state.animating = false;
-            // Restore
-            state.ix = state.snap.ix;
-            state.iy = state.snap.iy;
-            state.jx = state.snap.jx;
-            state.jy = state.snap.jy;
-            
-            updateUIFromState();
-            updateInfo();
-            draw();
-            
-            setInputsEnabled(true);
-            btnPlay.disabled = false;
-            btnStop.disabled = true;
-        }
-
-        function animateFrame() {
-            if (!state.animating) return;
-
-            state.animProgress += state.animDirection;
-            
-            // Bounce logic
-            if (state.animProgress >= 1.0) {
-                state.animProgress = 1.0;
-                state.animDirection = -0.015;
-            } else if (state.animProgress <= 0.0) {
-                state.animProgress = 0.0;
-                state.animDirection = 0.015;
-            }
-
-            // Ease function
-            const t = state.animProgress * state.animProgress * (3 - 2 * state.animProgress);
-
-            // Interpolate (Start is Identity, End is Snapshot)
-            state.ix = lerp(state.snap.ix, 1.0, t);
-            state.iy = lerp(state.snap.iy, 0.0, t);
-            state.jx = lerp(state.snap.jx, 0.0, t);
-            state.jy = lerp(state.snap.jy, 1.0, t);
-
-            updateUIFromState();
-            updateInfo();
-            draw();
-
-            requestAnimationFrame(animateFrame);
-        }
-
-        function setInputsEnabled(enabled) {
-            Object.values(inputs).forEach(inp => inp.disabled = !enabled);
-        }
-
-        // Run
-        init();
-
-    </script>
-</body>
-</html>
+    }
+}
