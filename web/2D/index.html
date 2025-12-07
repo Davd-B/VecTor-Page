@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VecTor 3D - Spatial Matrix Visualizer</title>
+    <title>VecTor - 3D/2D Vector Visualizer</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -16,8 +16,8 @@
             
             --color-i: #ef4444; /* Red */
             --color-j: #22c55e; /* Green */
-            --color-k: #3b82f6; /* Blue */
-            --color-a: #f59e0b; /* Orange/Amber */
+            --color-k: #eab308; /* Yellow/Gold */
+            --color-a: #3b82f6; /* Blue */
             --accent: #6366f1;
         }
 
@@ -43,7 +43,7 @@
 
         /* Sidebar */
         .sidebar {
-            width: 400px;
+            width: 420px; /* Slightly wider for 3D inputs */
             background-color: var(--card-color);
             padding: 20px;
             display: flex;
@@ -54,8 +54,8 @@
             overflow-y: auto;
         }
 
-        h1 { font-size: 22px; margin-bottom: 20px; font-weight: 700; }
-        h2 { font-size: 15px; margin-bottom: 10px; font-weight: 600; opacity: 0.9; }
+        h1 { font-size: 24px; margin-bottom: 20px; font-weight: 700; }
+        h2 { font-size: 16px; margin-bottom: 10px; font-weight: 600; opacity: 0.9; }
 
         .section {
             background-color: var(--bg-color);
@@ -65,25 +65,30 @@
             margin-bottom: 20px;
         }
 
-        /* Matrix 3x3 Styling */
-        .matrix-container {
+        /* Matrix/Vector Brackets Styling */
+        .bracket-container {
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
-            padding: 10px;
+            padding: 10px 15px;
         }
         
-        .matrix-grid {
+        .bracket-content {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr; /* 3 Columns */
-            gap: 8px;
+            grid-template-columns: 1fr 1fr; /* Default 2D */
+            gap: 10px;
+            transition: all 0.3s;
         }
 
-        .vector-grid {
+        .bracket-content.mode-3d {
+            grid-template-columns: 1fr 1fr 1fr; /* 3D Mode */
+        }
+
+        .vector-content {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 8px;
+            gap: 10px;
         }
 
         .bracket-border {
@@ -104,31 +109,32 @@
         .bracket-border-right::after { bottom: 0; right: 0; left: auto; }
 
         /* Input Fields */
-        .input-wrapper {
-            position: relative;
+        .input-group {
+            display: flex;
+            align-items: center;
         }
-        
-        /* Tiny label inside input area */
-        .tiny-label {
-            position: absolute;
-            top: 2px;
-            left: 4px;
-            font-size: 9px;
+        .input-group.hidden {
+            display: none;
+        }
+
+        .input-label {
             font-weight: bold;
-            opacity: 0.7;
-            pointer-events: none;
+            margin-right: 5px;
+            width: 30px;
+            font-size: 13px;
+            text-align: right;
         }
 
         input[type="number"] {
             width: 100%;
-            padding: 12px 4px 4px 4px; /* Space for tiny label */
+            padding: 6px;
             background-color: var(--input-bg);
             border: 1px solid var(--border-color);
             color: var(--text-color);
             border-radius: 4px;
             font-family: 'Courier New', monospace;
             font-weight: bold;
-            font-size: 15px;
+            font-size: 14px;
             text-align: center;
             outline: none;
         }
@@ -144,33 +150,9 @@
 
         canvas {
             flex: 1;
-            cursor: move; /* 3D rotate cursor */
+            cursor: crosshair;
             display: block;
         }
-
-        /* View Toggle Button */
-        .view-toggle {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background-color: var(--card-color);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            z-index: 50;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .view-toggle:hover { transform: translateY(-1px); box-shadow: 0 6px 8px rgba(0,0,0,0.15); }
-        .view-toggle span { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
-        .dot-free { background-color: var(--color-a); }
-        .dot-iso { background-color: var(--color-j); }
 
         /* Bottom Panel */
         .bottom-panel {
@@ -185,87 +167,131 @@
 
         .info-labels {
             display: flex;
-            gap: 20px;
+            flex-direction: column;
+            gap: 5px;
             font-family: 'Courier New', monospace;
             font-weight: bold;
             font-size: 13px;
         }
 
-        .controls { display: flex; gap: 10px; }
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
 
-        .btn-action {
+        button {
             background-color: var(--accent);
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 8px 16px;
             border-radius: 6px;
             font-weight: bold;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
-        .btn-action:hover { opacity: 0.9; }
-        .btn-action:disabled { background-color: var(--axis-line); cursor: not-allowed; }
 
-        .theme-btn {
+        button:hover { opacity: 0.9; }
+        button:disabled { background-color: var(--axis-line); cursor: not-allowed; }
+
+        .top-controls {
             position: absolute;
             top: 20px;
-            left: 20px;
+            right: 20px;
             z-index: 100;
-            background: var(--card-color);
-            color: var(--text-color);
-            padding: 8px;
-            border-radius: 50%;
-            border: 1px solid var(--border-color);
-            cursor: pointer;
+            display: flex;
+            gap: 10px;
         }
 
-        /* Helpers */
+        .icon-btn {
+            background: var(--card-color);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 16px;
+        }
+
+        /* Color Helpers */
         .text-i { color: var(--color-i); }
         .text-j { color: var(--color-j); }
         .text-k { color: var(--color-k); }
         .text-a { color: var(--color-a); }
 
-        @media (max-width: 900px) {
+        /* Responsive */
+        @media (max-width: 800px) {
             body { flex-direction: column; overflow-y: auto; }
-            .sidebar { width: 100%; order: 2; height: auto;}
+            .sidebar { width: 100%; height: auto; order: 2; }
             .main-content { height: 60vh; order: 1; }
         }
     </style>
 </head>
 <body>
 
-    <!-- Theme Toggle -->
-    <button class="theme-btn" id="themeBtn">🌓</button>
+    <!-- Top Right Controls -->
+    <div class="top-controls">
+        <button class="icon-btn" id="modeBtn" title="Switch 2D/3D">2D</button>
+        <button class="icon-btn" id="themeBtn" title="Toggle Dark Mode">🌓</button>
+    </div>
 
-    <!-- Sidebar -->
+    <!-- Left Panel -->
     <div class="sidebar">
-        <h1>3D Transformations</h1>
+        <h1>Transformations</h1>
 
         <!-- Matrix Section -->
         <div class="section">
-            <h2>Matrix T (Basis Vectors)</h2>
-            <div class="matrix-container">
+            <h2>Matrix T</h2>
+            <div class="bracket-container">
                 <div class="bracket-border"></div>
                 <div class="bracket-border bracket-border-right">
                      <span style="position:absolute; width:10px; height:2px; background:#d1d5db; top:0; right:0;"></span>
                      <span style="position:absolute; width:10px; height:2px; background:#d1d5db; bottom:0; right:0;"></span>
                 </div>
                 
-                <div class="matrix-grid">
-                    <!-- Row X -->
-                    <div class="input-wrapper"><span class="tiny-label text-i">i·x</span><input type="number" id="ix" value="1.0" step="0.1"></div>
-                    <div class="input-wrapper"><span class="tiny-label text-j">j·x</span><input type="number" id="jx" value="0.0" step="0.1"></div>
-                    <div class="input-wrapper"><span class="tiny-label text-k">k·x</span><input type="number" id="kx" value="0.0" step="0.1"></div>
-                    
-                    <!-- Row Y -->
-                    <div class="input-wrapper"><span class="tiny-label text-i">i·y</span><input type="number" id="iy" value="0.0" step="0.1"></div>
-                    <div class="input-wrapper"><span class="tiny-label text-j">j·y</span><input type="number" id="jy" value="1.0" step="0.1"></div>
-                    <div class="input-wrapper"><span class="tiny-label text-k">k·y</span><input type="number" id="ky" value="0.0" step="0.1"></div>
+                <div class="bracket-content" id="matrixContainer">
+                    <!-- Row 1 -->
+                    <div class="input-group">
+                        <span class="input-label text-i">i·x</span>
+                        <input type="number" id="txtIx" value="1.0" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <span class="input-label text-j">j·x</span>
+                        <input type="number" id="txtJx" value="0.0" step="0.1">
+                    </div>
+                    <div class="input-group input-3d hidden">
+                        <span class="input-label text-k">k·x</span>
+                        <input type="number" id="txtKx" value="0.0" step="0.1">
+                    </div>
 
-                    <!-- Row Z -->
-                    <div class="input-wrapper"><span class="tiny-label text-i">i·z</span><input type="number" id="iz" value="0.0" step="0.1"></div>
-                    <div class="input-wrapper"><span class="tiny-label text-j">j·z</span><input type="number" id="jz" value="0.0" step="0.1"></div>
-                    <div class="input-wrapper"><span class="tiny-label text-k">k·z</span><input type="number" id="kz" value="1.0" step="0.1"></div>
+                    <!-- Row 2 -->
+                    <div class="input-group">
+                        <span class="input-label text-i">i·y</span>
+                        <input type="number" id="txtIy" value="0.0" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <span class="input-label text-j">j·y</span>
+                        <input type="number" id="txtJy" value="1.0" step="0.1">
+                    </div>
+                    <div class="input-group input-3d hidden">
+                        <span class="input-label text-k">k·y</span>
+                        <input type="number" id="txtKy" value="0.0" step="0.1">
+                    </div>
+
+                    <!-- Row 3 (3D only) -->
+                    <div class="input-group input-3d hidden">
+                        <span class="input-label text-i">i·z</span>
+                        <input type="number" id="txtIz" value="0.0" step="0.1">
+                    </div>
+                    <div class="input-group input-3d hidden">
+                        <span class="input-label text-j">j·z</span>
+                        <input type="number" id="txtJz" value="0.0" step="0.1">
+                    </div>
+                    <div class="input-group input-3d hidden">
+                        <span class="input-label text-k">k·z</span>
+                        <input type="number" id="txtKz" value="1.0" step="0.1">
+                    </div>
                 </div>
             </div>
         </div>
@@ -275,16 +301,25 @@
             <h2>Input Vector (a)</h2>
             <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
                 <span style="font-family: serif; font-style: italic; font-size: 18px;">a = </span>
-                <div class="matrix-container">
+                <div class="bracket-container">
                     <div class="bracket-border"></div>
                     <div class="bracket-border bracket-border-right">
                         <span style="position:absolute; width:10px; height:2px; background:#d1d5db; top:0; right:0;"></span>
                         <span style="position:absolute; width:10px; height:2px; background:#d1d5db; bottom:0; right:0;"></span>
                    </div>
-                    <div class="vector-grid">
-                        <div class="input-wrapper"><span class="tiny-label text-a">x</span><input type="number" id="ax" value="1.0" step="0.1"></div>
-                        <div class="input-wrapper"><span class="tiny-label text-a">y</span><input type="number" id="ay" value="1.0" step="0.1"></div>
-                        <div class="input-wrapper"><span class="tiny-label text-a">z</span><input type="number" id="az" value="1.0" step="0.1"></div>
+                    <div class="vector-content">
+                        <div class="input-group">
+                            <span class="input-label text-a">x</span>
+                            <input type="number" id="txtAx" value="1.0" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <span class="input-label text-a">y</span>
+                            <input type="number" id="txtAy" value="1.0" step="0.1">
+                        </div>
+                        <div class="input-group input-3d hidden">
+                            <span class="input-label text-a">z</span>
+                            <input type="number" id="txtAz" value="0.0" step="0.1">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -293,370 +328,456 @@
 
     <!-- Main Canvas Area -->
     <div class="main-content">
-        <!-- Smart Toggle Button -->
-        <button class="view-toggle" id="viewToggle">
-            <span class="dot-free" id="viewDot"></span> <span id="viewText">Free 3D</span>
-        </button>
-
         <canvas id="canvas"></canvas>
         
         <div class="bottom-panel">
             <div class="info-labels">
                 <span id="lblDeterminant">Det: 1.00</span>
-                <span style="border-left: 1px solid var(--border-color); margin: 0 5px;"></span>
-                <span id="lblTransformed">T(a) = (1.0, 1.0, 1.0)</span>
+                <span id="lblTransformed">T(a) = (1.00, 1.00)</span>
             </div>
             <div class="controls">
-                <button class="btn-action" id="btnPlay">▶ Play</button>
-                <button class="btn-action" id="btnStop" disabled>■ Stop</button>
+                <button id="btnPlay">▶ Play</button>
+                <button id="btnStop" disabled>■ Stop</button>
             </div>
         </div>
     </div>
 
     <script>
-        // --- State Management ---
+        // State
         const state = {
-            // Matrix (Basis Vectors)
+            // Basis Vectors (Columns of Matrix)
             ix: 1.0, iy: 0.0, iz: 0.0,
             jx: 0.0, jy: 1.0, jz: 0.0,
             kx: 0.0, ky: 0.0, kz: 1.0,
             // Input Vector
-            ax: 1.0, ay: 1.0, az: 1.0,
+            ax: 1.0, ay: 1.0, az: 0.0,
             
-            // View / Camera
-            scale: 80,
-            yaw: -0.6,
-            pitch: 0.4,
-            isIsometric: false,
-            
-            // UI
+            // View Settings
+            scale: 50,
             isDark: false,
-            isDragging: false,
-            lastMx: 0, lastMy: 0,
+            is3D: false,
             
-            // Animation (Transformation)
+            // Interaction
+            dragging: null,
+            
+            // Animation
             animating: false,
             animProgress: 0,
             animDirection: 0.015,
-            snap: {}, // Snapshot for reset
-
-            // View Animation
-            viewAnimating: false
+            snap: {} 
         };
 
-        // Constants
-        const ISO_YAW = -Math.PI / 4; // -45 deg
-        const ISO_PITCH = Math.atan(1 / Math.sqrt(2)); // ~35.26 deg
-
-        // DOM
+        // DOM Elements
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const inputIds = ['ix','iy','iz','jx','jy','jz','kx','ky','kz','ax','ay','az'];
-        const inputs = {};
-        inputIds.forEach(id => inputs[id] = document.getElementById(id));
-        
-        const viewToggleBtn = document.getElementById('viewToggle');
-        const viewText = document.getElementById('viewText');
-        const viewDot = document.getElementById('viewDot');
-        
-        const themeBtn = document.getElementById('themeBtn');
+        const inputs = {
+            ix: document.getElementById('txtIx'), iy: document.getElementById('txtIy'), iz: document.getElementById('txtIz'),
+            jx: document.getElementById('txtJx'), jy: document.getElementById('txtJy'), jz: document.getElementById('txtJz'),
+            kx: document.getElementById('txtKx'), ky: document.getElementById('txtKy'), kz: document.getElementById('txtKz'),
+            ax: document.getElementById('txtAx'), ay: document.getElementById('txtAy'), az: document.getElementById('txtAz'),
+        };
         const lblDet = document.getElementById('lblDeterminant');
         const lblTrans = document.getElementById('lblTransformed');
         const btnPlay = document.getElementById('btnPlay');
         const btnStop = document.getElementById('btnStop');
+        const themeBtn = document.getElementById('themeBtn');
+        const modeBtn = document.getElementById('modeBtn');
+        const matrixContainer = document.getElementById('matrixContainer');
+        const input3DFields = document.querySelectorAll('.input-3d');
 
-        // --- Init ---
+        // Initialization
         function init() {
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
             
-            // Input Bindings
-            inputIds.forEach(id => {
-                inputs[id].addEventListener('input', (e) => {
+            // Input Listeners
+            Object.keys(inputs).forEach(key => {
+                inputs[key].addEventListener('input', (e) => {
                     const val = parseFloat(e.target.value);
                     if (!isNaN(val)) {
-                        state[id] = val;
+                        state[key] = val;
                         updateInfo();
                         draw();
                     }
                 });
             });
 
-            // Theme
-            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) toggleTheme();
+            // Theme Check
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                toggleTheme();
+            }
             themeBtn.addEventListener('click', toggleTheme);
+            modeBtn.addEventListener('click', toggleMode);
 
             // Canvas Interaction
             canvas.addEventListener('mousedown', onMouseDown);
-            window.addEventListener('mousemove', onMouseMove);
+            canvas.addEventListener('mousemove', onMouseMove);
             window.addEventListener('mouseup', onMouseUp);
             
-            // Smart View Toggle
-            viewToggleBtn.addEventListener('click', toggleSmartView);
-
-            // Animation Buttons
+            // Animation
             btnPlay.addEventListener('click', startAnimation);
             btnStop.addEventListener('click', stopAnimation);
 
             draw();
         }
 
-        // --- 3D Projection Logic ---
+        // --- View & Projection Logic ---
 
-        function project(x, y, z) {
-            // Rotate Yaw (around Y axis in 3D, but standard math usually rotates around Z. 
-            // Here we define Y as UP. So Yaw rotates X and Z).
-            // Formula adapted for Y-Up right-handed system
-            
-            const cy = Math.cos(state.yaw);
-            const sy = Math.sin(state.yaw);
-            const cp = Math.cos(state.pitch);
-            const sp = Math.sin(state.pitch);
+        function toggleMode() {
+            state.is3D = !state.is3D;
+            modeBtn.textContent = state.is3D ? "3D" : "2D";
+            modeBtn.style.background = state.is3D ? "var(--accent)" : "var(--card-color)";
+            modeBtn.style.color = state.is3D ? "#fff" : "var(--text-color)";
 
-            // 1. Yaw (Rotation around Y-axis)
-            const x1 = x * cy - z * sy;
-            const z1 = x * sy + z * cy;
-            const y1 = y;
-
-            // 2. Pitch (Rotation around X-axis)
-            const y2 = y1 * cp - z1 * sp;
-            const z2 = y1 * sp + z1 * cp;
-
-            // 3. Orthographic Projection
-            const cx = canvas.width / 2;
-            const cy_screen = canvas.height / 2;
-            
-            return {
-                x: cx + x1 * state.scale,
-                y: cy_screen - y2 * state.scale, // Y is up, screen Y is down
-                depth: z2 // Used for Z-sorting if needed
-            };
-        }
-
-        function getTransformedPoint(u, v, w) {
-            return {
-                x: u * state.ix + v * state.jx + w * state.kx,
-                y: u * state.iy + v * state.jy + w * state.ky,
-                z: u * state.iz + v * state.jz + w * state.kz
-            };
-        }
-
-        // --- Drawing ---
-
-        function draw() {
-            const w = canvas.width;
-            const h = canvas.height;
-            ctx.clearRect(0, 0, w, h);
-
-            // Styles
-            const style = getComputedStyle(document.body);
-            const colGrid = state.isDark ? '#374151' : '#e5e7eb';
-            const colAxis = state.isDark ? '#4b5563' : '#9ca3af';
-            const colI = style.getPropertyValue('--color-i').trim();
-            const colJ = style.getPropertyValue('--color-j').trim();
-            const colK = style.getPropertyValue('--color-k').trim();
-            const colA = style.getPropertyValue('--color-a').trim();
-
-            // 1. Draw Grid (Projected planes)
-            ctx.lineWidth = 1;
-            drawGrid(colGrid, colAxis);
-
-            // 2. Draw Basis Vectors
-            // Origin
-            const origin = project(0, 0, 0);
-
-            drawArrow(0,0,0, state.ix, state.iy, state.iz, colI, "i");
-            drawArrow(0,0,0, state.jx, state.jy, state.jz, colJ, "j");
-            drawArrow(0,0,0, state.kx, state.ky, state.kz, colK, "k");
-
-            // 3. Draw Result Vector
-            const res = getTransformedPoint(state.ax, state.ay, state.az);
-            
-            // Draw "Shadow" line to floor (Z=0 plane) if Z is significant
-            if (Math.abs(res.z) > 0.05) {
-                const floorPt = project(res.x, res.y, 0);
-                const tip = project(res.x, res.y, res.z);
-                ctx.beginPath();
-                ctx.setLineDash([4, 4]);
-                ctx.strokeStyle = colA + "66"; // Transparent
-                ctx.moveTo(tip.x, tip.y);
-                ctx.lineTo(floorPt.x, floorPt.y);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                
-                // Dot on floor
-                ctx.fillStyle = colA + "66";
-                ctx.beginPath();
-                ctx.arc(floorPt.x, floorPt.y, 3, 0, Math.PI*2);
-                ctx.fill();
-            }
-
-            drawArrow(0,0,0, res.x, res.y, res.z, colA, "a");
-
-            // Center Dot
-            ctx.fillStyle = state.isDark ? '#fff' : '#333';
-            ctx.beginPath();
-            ctx.arc(origin.x, origin.y, 3, 0, Math.PI*2);
-            ctx.fill();
-        }
-
-        function drawGrid(color, axisColor) {
-            const range = 4;
-            // Draw transformed grid lines on the "floor" defined by i and k (roughly) 
-            // or just a standard 3D grid transformed.
-            // Let's draw lines parallel to the main axes in the transformed space
-            
-            ctx.lineWidth = 1;
-
-            // Helper to draw a segment in 3D
-            const line3D = (p1, p2, col) => {
-                const s1 = project(p1.x, p1.y, p1.z);
-                const s2 = project(p2.x, p2.y, p2.z);
-                ctx.beginPath();
-                ctx.strokeStyle = col;
-                ctx.moveTo(s1.x, s1.y);
-                ctx.lineTo(s2.x, s2.y);
-                ctx.stroke();
-            };
-
-            for (let i = -range; i <= range; i++) {
-                const c = (i === 0) ? axisColor : color;
-                // Lines along X axis (varying Z)
-                // Start: (-range, 0, i) -> End: (range, 0, i)
-                // BUT we apply the T matrix to these grid points!
-                
-                // Actually, standard visualizers usually show the grid of the input space transformed.
-                // Let's draw the grid on the XZ plane (y=0) transformed.
-                
-                // Line varying X
-                let pStart = getTransformedPoint(-range, 0, i);
-                let pEnd = getTransformedPoint(range, 0, i);
-                line3D(pStart, pEnd, c);
-
-                // Line varying Z
-                pStart = getTransformedPoint(i, 0, -range);
-                pEnd = getTransformedPoint(i, 0, range);
-                line3D(pStart, pEnd, c);
-            }
-        }
-
-        function drawArrow(x1, y1, z1, x2, y2, z2, color, label) {
-            const start = project(x1, y1, z1);
-            const end = project(x2, y2, z2);
-
-            // Line
-            ctx.beginPath();
-            ctx.moveTo(start.x, start.y);
-            ctx.lineTo(end.x, end.y);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 3;
-            ctx.lineCap = 'round';
-            ctx.stroke();
-
-            // Arrowhead
-            const angle = Math.atan2(end.y - start.y, end.x - start.x);
-            const headLen = 10;
-            ctx.beginPath();
-            ctx.moveTo(end.x, end.y);
-            ctx.lineTo(end.x - headLen * Math.cos(angle - Math.PI / 6), end.y - headLen * Math.sin(angle - Math.PI / 6));
-            ctx.lineTo(end.x - headLen * Math.cos(angle + Math.PI / 6), end.y - headLen * Math.sin(angle + Math.PI / 6));
-            ctx.fillStyle = color;
-            ctx.fill();
-
-            // Label
-            ctx.fillStyle = color;
-            ctx.font = "bold 14px sans-serif";
-            ctx.fillText(label, end.x + 10, end.y);
-        }
-
-        // --- Interaction & Smart View ---
-
-        function toggleSmartView() {
-            state.isIsometric = !state.isIsometric;
-            if (state.isIsometric) {
-                // Animate to Iso
-                updateViewButton("Isometric (Locked)", "dot-iso");
-                animateCameraTo(ISO_YAW, ISO_PITCH);
+            // Toggle Input Visibility
+            if (state.is3D) {
+                matrixContainer.classList.add('mode-3d');
+                input3DFields.forEach(el => el.classList.remove('hidden'));
             } else {
-                updateViewButton("Free 3D", "dot-free");
-            }
-        }
-
-        function updateViewButton(text, dotClass) {
-            viewText.textContent = text;
-            viewDot.className = "";
-            viewDot.classList.add(dotClass);
-        }
-
-        function animateCameraTo(targetYaw, targetPitch) {
-            state.viewAnimating = true;
-            const startYaw = state.yaw;
-            const startPitch = state.pitch;
-            let progress = 0;
-
-            function step() {
-                if (!state.viewAnimating) return; // Interrupted
-                progress += 0.05;
-                if (progress >= 1) {
-                    state.yaw = targetYaw;
-                    state.pitch = targetPitch;
-                    state.viewAnimating = false;
-                    draw();
-                    return;
-                }
-                
-                // Ease Out Quad
-                const t = progress * (2 - progress);
-                state.yaw = startYaw + (targetYaw - startYaw) * t;
-                state.pitch = startPitch + (targetPitch - startPitch) * t;
-                draw();
-                requestAnimationFrame(step);
-            }
-            requestAnimationFrame(step);
-        }
-
-        function onMouseDown(e) {
-            state.isDragging = true;
-            state.lastMx = e.clientX;
-            state.lastMy = e.clientY;
-        }
-
-        function onMouseMove(e) {
-            if (!state.isDragging) return;
-
-            // SMART UNLOCK:
-            // If dragging happens while in Isometric mode, unlock immediately
-            if (state.isIsometric) {
-                state.isIsometric = false;
-                state.viewAnimating = false; // Stop any tweening
-                updateViewButton("Free 3D", "dot-free");
+                matrixContainer.classList.remove('mode-3d');
+                input3DFields.forEach(el => el.classList.add('hidden'));
             }
 
-            const dx = e.clientX - state.lastMx;
-            const dy = e.clientY - state.lastMy;
+            // Reset 'Camera' or defaults if switching? 
+            // For now, keep values but just render differently.
             
-            state.yaw += dx * 0.01;
-            state.pitch += dy * 0.01;
-            
-            // Clamp pitch to avoid flipping
-            state.pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, state.pitch));
-
-            state.lastMx = e.clientX;
-            state.lastMy = e.clientY;
+            updateInfo();
             draw();
         }
-
-        function onMouseUp() {
-            state.isDragging = false;
-        }
-
-        // --- Helpers ---
 
         function resizeCanvas() {
             const parent = canvas.parentElement;
             canvas.width = parent.clientWidth;
             canvas.height = parent.clientHeight - 70;
             draw();
+        }
+
+        // Transforms mathematical 3D coordinates (x,y,z) to Canvas 2D coordinates (u,v)
+        function project(x, y, z = 0) {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+
+            if (!state.is3D) {
+                // Standard 2D cartesian
+                // x right, y up (inverted for canvas)
+                return {
+                    u: cx + (x * state.scale),
+                    v: cy - (y * state.scale)
+                };
+            } else {
+                // Isometric Projection
+                // x goes down-right (30 deg)
+                // y goes down-left (150 deg)
+                // z goes straight up
+                
+                // Basis for Isometric view
+                const isoCos = 0.866; // cos(30)
+                const isoSin = 0.5;   // sin(30)
+
+                const u = cx + (x - y) * isoCos * state.scale;
+                const v = cy + (x + y) * isoSin * state.scale - (z * state.scale);
+                
+                return { u, v };
+            }
+        }
+
+        // Reverse projection for Mouse Interaction (2D only)
+        function unproject2D(u, v) {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            return {
+                x: (u - cx) / state.scale,
+                y: (cy - v) / state.scale
+            };
+        }
+
+        function getTransformedA() {
+            // Matrix vector multiplication
+            // [ix jx kx] [ax]
+            // [iy jy ky] [ay]
+            // [iz jz kz] [az]
+            return {
+                x: state.ax * state.ix + state.ay * state.jx + state.az * state.kx,
+                y: state.ax * state.iy + state.ay * state.jy + state.az * state.ky,
+                z: state.ax * state.iz + state.ay * state.jz + state.az * state.kz
+            };
+        }
+
+        function getDeterminant() {
+            if (!state.is3D) {
+                return state.ix * state.jy - state.iy * state.jx;
+            } else {
+                // Sarrus rule / cofactor expansion for 3x3
+                return (
+                    state.ix * (state.jy * state.kz - state.jz * state.ky) -
+                    state.jx * (state.iy * state.kz - state.iz * state.ky) +
+                    state.kx * (state.iy * state.jz - state.iz * state.jy)
+                );
+            }
+        }
+
+        // --- Drawing Logic ---
+
+        function draw() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const style = getComputedStyle(document.body);
+            
+            ctx.clearRect(0, 0, w, h);
+
+            const gridColor = state.isDark ? '#374151' : '#e5e7eb';
+            const axisColor = state.isDark ? '#4b5563' : '#9ca3af';
+            const colorI = style.getPropertyValue('--color-i').trim();
+            const colorJ = style.getPropertyValue('--color-j').trim();
+            const colorK = style.getPropertyValue('--color-k').trim();
+            const colorA = style.getPropertyValue('--color-a').trim();
+
+            ctx.lineWidth = 1;
+
+            // Helper for lines
+            const drawLine = (p1, p2, color, width = 1, dash = []) => {
+                const s1 = project(p1.x, p1.y, p1.z);
+                const s2 = project(p2.x, p2.y, p2.z);
+                ctx.beginPath();
+                ctx.moveTo(s1.u, s1.v);
+                ctx.lineTo(s2.u, s2.v);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width;
+                ctx.setLineDash(dash);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            };
+
+            const range = 10; // Smaller range for 3D cleanliness
+
+            // --- Draw Grid ---
+            // In 2D: Grid is static background.
+            // In 3D transformed: Grid represents the plane spanned by i and j usually, or we draw the "world" grid.
+            // Let's draw the "Transformed Grid" (the lattice created by vectors).
+            
+            // To prevent clutter in 3D, we mainly draw the grid on the "floor" defined by i and j
+            
+            for (let m = -range; m <= range; m++) {
+                // Lines parallel to i-vector (varying m steps along j-vector)
+                // In 3D, we keep z contribution zero for the base grid to keep it readable, 
+                // OR we draw the full transformed lattice.
+                // Let's draw the full transformed lattice for i/j plane (k=0)
+                
+                // Line varying i, fixed j=m
+                const start1 = {
+                    x: -range*state.ix + m*state.jx,
+                    y: -range*state.iy + m*state.jy,
+                    z: -range*state.iz + m*state.jz
+                };
+                const end1 = {
+                    x: range*state.ix + m*state.jx,
+                    y: range*state.iy + m*state.jy,
+                    z: range*state.iz + m*state.jz
+                };
+                drawLine(start1, end1, gridColor);
+
+                // Line varying j, fixed i=m
+                const start2 = {
+                    x: m*state.ix - range*state.jx,
+                    y: m*state.iy - range*state.jy,
+                    z: m*state.iz - range*state.jz
+                };
+                const end2 = {
+                    x: m*state.ix + range*state.jx,
+                    y: m*state.iy + range*state.jy,
+                    z: m*state.iz + range*state.jz
+                };
+                drawLine(start2, end2, gridColor);
+            }
+
+            // --- Axes (World Origin lines) ---
+            // Visual anchor
+            drawLine({x:-range, y:0, z:0}, {x:range, y:0, z:0}, axisColor, 1);
+            drawLine({x:0, y:-range, z:0}, {x:0, y:range, z:0}, axisColor, 1);
+            if (state.is3D) {
+                drawLine({x:0, y:0, z:-range}, {x:0, y:0, z:range}, axisColor, 1);
+            }
+
+            // --- Vectors ---
+            // Draw order matters for pseudo-depth
+            
+            // Basis Vectors
+            drawVector(state.ix, state.iy, state.iz, colorI, "i");
+            drawVector(state.jx, state.jy, state.jz, colorJ, "j");
+            if (state.is3D) {
+                drawVector(state.kx, state.ky, state.kz, colorK, "k");
+            }
+
+            // Result Vector
+            const ta = getTransformedA();
+            drawVector(ta.x, ta.y, ta.z, colorA, "a");
+
+            // Origin Dot
+            const origin = project(0,0,0);
+            ctx.fillStyle = state.isDark ? '#e5e5e5' : '#333';
+            ctx.beginPath();
+            ctx.arc(origin.u, origin.v, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawVector(vx, vy, vz, color, label) {
+            const start = project(0, 0, 0);
+            const end = project(vx, vy, vz);
+            
+            // Shadow line (projection to floor) to help visualize 3D height
+            if (state.is3D && Math.abs(vz) > 0.01) {
+                const shadowEnd = project(vx, vy, 0); // Where it would be if z=0 (in world space? No, visual floor)
+                // Actually, a "stick" to the floor (z=0 plane of the vector tip)
+                // If the vector is (1,1,1), it points up. We draw a line from (1,1,0) to (1,1,1).
+                // Wait, that assumes we are visualizing the vector in world space.
+                // Since this is a visualizer of the vector itself:
+                
+                // Let's draw a dotted line from the tip to the "xy-plane" component of the vector
+                // This helps depth perception in isometric view
+                // We need to know the 'world' z of this vector tip. 
+                // In our math, vz is the z-coord.
+                
+                // But wait, the vector is a linear combo of basis vectors. 
+                // The 'floor' is visually the plane z=0 in screen projection logic.
+                // Let's just draw the line from (u,v) to (u, v + z_height_in_pixels).
+                // In isometric, z moves straight up.
+                const groundV = end.v + (vz * state.scale); 
+                
+                // This is tricky because vz is math-z. 
+                // Let's calculate the projection of the point (x,y,0)
+                const base = project(vx, vy, 0); // This is wrong if the basis vectors have Z.
+                
+                // Simplified shadow: Just a line to the origin? No.
+                // Let's skip complex shadows for now to keep it clean.
+            }
+
+            const angle = Math.atan2(end.v - start.v, end.u - start.u);
+            const headLen = 12;
+
+            // Line
+            ctx.beginPath();
+            ctx.moveTo(start.u, start.v);
+            ctx.lineTo(end.u, end.v);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Arrow Head
+            ctx.beginPath();
+            ctx.moveTo(end.u, end.v);
+            ctx.lineTo(end.u - headLen * Math.cos(angle - Math.PI / 6), end.v - headLen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(end.u - headLen * Math.cos(angle + Math.PI / 6), end.v - headLen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // Label
+            ctx.font = "bold 14px sans-serif";
+            const lx = end.u + 10;
+            const ly = end.v - 5;
+            ctx.fillStyle = color;
+            ctx.fillText(label, lx, ly);
+        }
+
+        // --- Interaction ---
+
+        function isNear(mx, my, vx, vy) {
+            // Only used in 2D
+            const p = project(vx, vy, 0);
+            const dist = (mx - p.u)**2 + (my - p.v)**2;
+            return dist < 225; 
+        }
+
+        function onMouseDown(e) {
+            if (state.animating || state.is3D) return; // Disable drag in 3D for simplicity
+            
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            if (isNear(mx, my, state.ix, state.iy)) state.dragging = 'i';
+            else if (isNear(mx, my, state.jx, state.jy)) state.dragging = 'j';
+            else {
+                const ta = getTransformedA();
+                if (isNear(mx, my, ta.x, ta.y)) state.dragging = 'a';
+            }
+
+            if (state.dragging) canvas.style.cursor = 'move';
+        }
+
+        function onMouseMove(e) {
+            if (state.animating) return;
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            // Hover state
+            if (!state.dragging) {
+                if(state.is3D) {
+                    canvas.style.cursor = 'default';
+                    return;
+                }
+                const ta = getTransformedA();
+                if (isNear(mx, my, state.ix, state.iy) || isNear(mx, my, state.jx, state.jy) || isNear(mx, my, ta.x, ta.y)) {
+                    canvas.style.cursor = 'pointer';
+                } else {
+                    canvas.style.cursor = 'crosshair';
+                }
+                return;
+            }
+
+            // Dragging (2D only)
+            let mathPos = unproject2D(mx, my);
+            let mathX = mathPos.x;
+            let mathY = mathPos.y;
+
+            // Snap
+            if (Math.abs(mathX - Math.round(mathX)) < 0.1) mathX = Math.round(mathX);
+            if (Math.abs(mathY - Math.round(mathY)) < 0.1) mathY = Math.round(mathY);
+
+            if (state.dragging === 'i') {
+                state.ix = mathX; state.iy = mathY;
+            } else if (state.dragging === 'j') {
+                state.jx = mathX; state.jy = mathY;
+            } else if (state.dragging === 'a') {
+                // Inverse solve for 2D
+                const det = state.ix * state.jy - state.iy * state.jx;
+                if (Math.abs(det) > 0.0001) {
+                    let newAx = (mathX * state.jy - mathY * state.jx) / det;
+                    let newAy = (mathX * -state.iy + mathY * state.ix) / det;
+                    state.ax = parseFloat(newAx.toFixed(2));
+                    state.ay = parseFloat(newAy.toFixed(2));
+                }
+            }
+
+            updateUIFromState();
+            updateInfo();
+            draw();
+        }
+
+        function onMouseUp() {
+            state.dragging = null;
+            if (!state.animating && !state.is3D) canvas.style.cursor = 'crosshair';
+        }
+
+        // --- Logic ---
+
+        function updateUIFromState() {
+            inputs.ix.value = state.ix; inputs.iy.value = state.iy; inputs.iz.value = state.iz;
+            inputs.jx.value = state.jx; inputs.jy.value = state.jy; inputs.jz.value = state.jz;
+            inputs.kx.value = state.kx; inputs.ky.value = state.ky; inputs.kz.value = state.kz;
+            inputs.ax.value = state.ax; inputs.ay.value = state.ay; inputs.az.value = state.az;
+        }
+
+        function updateInfo() {
+            const det = getDeterminant();
+            const ta = getTransformedA();
+            lblDet.textContent = `Det: ${det.toFixed(2)}`;
+            if(state.is3D) {
+                lblTrans.textContent = `T(a)=(${ta.x.toFixed(1)}, ${ta.y.toFixed(1)}, ${ta.z.toFixed(1)})`;
+            } else {
+                lblTrans.textContent = `T(a)=(${ta.x.toFixed(2)}, ${ta.y.toFixed(2)})`;
+            }
         }
 
         function toggleTheme() {
@@ -666,54 +787,37 @@
             draw();
         }
 
-        function updateInfo() {
-            // Det(3x3)
-            // a(ei − fh) − b(di − fg) + c(dh − eg)
-            // ix(jy*kz - jz*ky) ...
-            const det = 
-                state.ix * (state.jy * state.kz - state.jz * state.ky) -
-                state.iy * (state.jx * state.kz - state.jz * state.kx) +
-                state.iz * (state.jx * state.ky - state.jy * state.kx);
-            
-            const res = getTransformedPoint(state.ax, state.ay, state.az);
+        // --- Animation ---
+        function lerp(start, end, t) { return start + (end - start) * t; }
 
-            lblDet.textContent = `Det: ${det.toFixed(2)}`;
-            lblTrans.textContent = `T(a) = (${res.x.toFixed(1)}, ${res.y.toFixed(1)}, ${res.z.toFixed(1)})`;
-        }
-
-        function lerp(s, e, t) { return s + (e - s) * t; }
-
-        // --- Matrix Animation ---
-        
         function startAnimation() {
             if (state.animating) return;
-            // Snapshot current matrix
-            state.snap = { 
-                ix: state.ix, iy: state.iy, iz: state.iz,
-                jx: state.jx, jy: state.jy, jz: state.jz,
-                kx: state.kx, ky: state.ky, kz: state.kz
-            };
-            
+            state.snap = { ...state }; // clone state
             state.animating = true;
             state.animProgress = 0;
             state.animDirection = 0.015;
             
-            setInputsDisabled(true);
+            // Disable Inputs
+            Object.values(inputs).forEach(inp => inp.disabled = true);
             btnPlay.disabled = true;
             btnStop.disabled = false;
-            
             animateFrame();
         }
 
         function stopAnimation() {
             state.animating = false;
-            // Restore
-            Object.keys(state.snap).forEach(k => state[k] = state.snap[k]);
-            updateUIFields();
+            // Restore everything except view flags
+            const was3D = state.is3D;
+            const wasDark = state.isDark;
+            Object.assign(state, state.snap);
+            state.is3D = was3D;
+            state.isDark = wasDark;
+            
+            updateUIFromState();
             updateInfo();
             draw();
             
-            setInputsDisabled(false);
+            Object.values(inputs).forEach(inp => inp.disabled = false);
             btnPlay.disabled = false;
             btnStop.disabled = true;
         }
@@ -722,51 +826,32 @@
             if (!state.animating) return;
 
             state.animProgress += state.animDirection;
-            if (state.animProgress >= 1.0) {
-                state.animProgress = 1.0;
-                state.animDirection = -0.01;
-            } else if (state.animProgress <= 0.0) {
-                state.animProgress = 0.0;
-                state.animDirection = 0.01;
-            }
+            if (state.animProgress >= 1.0) { state.animProgress = 1.0; state.animDirection = -0.015; }
+            else if (state.animProgress <= 0.0) { state.animProgress = 0.0; state.animDirection = 0.015; }
 
-            // Ease
             const t = state.animProgress * state.animProgress * (3 - 2 * state.animProgress);
 
-            // Interpolate to Identity
-            // Identity: i(1,0,0), j(0,1,0), k(0,0,1)
-            state.ix = lerp(state.snap.ix, 1, t);
-            state.iy = lerp(state.snap.iy, 0, t);
-            state.iz = lerp(state.snap.iz, 0, t);
+            // Interpolate towards Identity Matrix
+            // Identity in 2D: i=(1,0,0), j=(0,1,0), k=(0,0,1)
+            // Identity in 3D: same
+            state.ix = lerp(state.snap.ix, 1.0, t);
+            state.iy = lerp(state.snap.iy, 0.0, t);
+            state.iz = lerp(state.snap.iz, 0.0, t);
+            
+            state.jx = lerp(state.snap.jx, 0.0, t);
+            state.jy = lerp(state.snap.jy, 1.0, t);
+            state.jz = lerp(state.snap.jz, 0.0, t);
 
-            state.jx = lerp(state.snap.jx, 0, t);
-            state.jy = lerp(state.snap.jy, 1, t);
-            state.jz = lerp(state.snap.jz, 0, t);
+            state.kx = lerp(state.snap.kx, 0.0, t);
+            state.ky = lerp(state.snap.ky, 0.0, t);
+            state.kz = lerp(state.snap.kz, 1.0, t);
 
-            state.kx = lerp(state.snap.kx, 0, t);
-            state.ky = lerp(state.snap.ky, 0, t);
-            state.kz = lerp(state.snap.kz, 1, t);
-
-            updateUIFields();
+            updateUIFromState();
             updateInfo();
             draw();
-
             requestAnimationFrame(animateFrame);
         }
 
-        function updateUIFields() {
-            inputIds.forEach(id => {
-                if(inputs[id] !== document.activeElement) { // Don't update if user typing
-                   inputs[id].value = parseFloat(state[id]).toFixed(2);
-                }
-            });
-        }
-
-        function setInputsDisabled(val) {
-            inputIds.forEach(id => inputs[id].disabled = val);
-        }
-
-        // Run
         init();
 
     </script>
