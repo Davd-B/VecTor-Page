@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VecTor - 2D Vector Visualizer</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --card-color: #f3f4f6;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+            --input-bg: #ffffff;
+            --grid-line: #e5e7eb;
+            --axis-line: #9ca3af;
+            
+            --color-i: #ef4444; /* Red */
+            --color-j: #22c55e; /* Green */
+            --color-a: #3b82f6; /* Blue */
+            --accent: #6366f1;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #111827;
+            --card-color: #1f2937;
+            --text-color: #f3f4f6;
+            --border-color: #374151;
+            --input-bg: #374151;
+            --grid-line: #374151;
+            --axis-line: #4b5563;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; transition: background-color 0.3s, color 0.3s; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 380px;
+            background-color: var(--card-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            z-index: 10;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+        }
+
+        h1 { font-size: 24px; margin-bottom: 20px; font-weight: 700; }
+        h2 { font-size: 16px; margin-bottom: 10px; font-weight: 600; opacity: 0.9; }
+
+        .section {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        /* Matrix/Vector Brackets Styling */
+        .bracket-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 10px 15px;
+        }
+        
+        .bracket-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .vector-content {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .bracket-border {
+            position: absolute;
+            top: 0; bottom: 0; left: 0; right: 0;
+            border: 2px solid #d1d5db; /* Neutral bracket color */
+            border-top: none;
+            border-bottom: none;
+            width: 100%;
+            pointer-events: none;
+        }
+        /* Create the hooks for brackets */
+        .bracket-border::before, .bracket-border::after {
+            content: ''; position: absolute; width: 10px; height: 2px; background: #d1d5db;
+        }
+        .bracket-border::before { top: 0; left: 0; }
+        .bracket-border::after { bottom: 0; left: 0; }
+        .bracket-border-right::before { top: 0; right: 0; left: auto; }
+        .bracket-border-right::after { bottom: 0; right: 0; left: auto; }
+
+        /* Input Fields */
+        .input-group {
+            display: flex;
+            align-items: center;
+        }
+
+        .input-label {
+            font-weight: bold;
+            margin-right: 8px;
+            width: 25px;
+            font-size: 14px;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+            outline: none;
+        }
+        input[type="number"]:focus { border-color: var(--accent); }
+
+        /* Canvas Area */
+        .main-content {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        canvas {
+            flex: 1;
+            cursor: crosshair;
+            display: block;
+        }
+
+        /* Bottom Panel */
+        .bottom-panel {
+            height: 70px;
+            background-color: var(--card-color);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+        }
+
+        .info-labels {
+            display: flex;
+            gap: 20px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        button:hover { opacity: 0.9; }
+        button:disabled { background-color: var(--axis-line); cursor: not-allowed; }
+
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: var(--card-color);
+            color: var(--text-color);
+            padding: 8px;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* Color Helpers */
+        .text-i { color: var(--color-i); }
+        .text-j { color: var(--color-j); }
+        .text-a { color: var(--color-a); }
+
+        /* Responsive */
+        @media (max-width: 800px) {
+            body { flex-direction: column; overflow-y: auto; }
+            .sidebar { width: 100%; height: auto; order: 2; }
+            .main-content { height: 60vh; order: 1; }
+            canvas { height: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Theme Toggle -->
+    <button class="theme-toggle" id="themeBtn" title="Toggle Dark Mode">🌓</button>
+
+    <!-- Left Panel -->
+    <div class="sidebar">
+        <h1>Transformations</h1>
+
+        <!-- Matrix Section -->
+        <div class="section">
+            <h2>Matrix T</h2>
+            <div class="bracket-container">
+                <div class="bracket-border"></div>
+                <div class="bracket-border bracket-border-right">
+                     <span style="position:absolute; width:10px; height:2px; background:#d1d5db; top:0; right:0;"></span>
+                     <span style="position:absolute; width:10px; height:2px; background:#d1d5db; bottom:0; right:0;"></span>
+                </div>
+                
+                <div class="bracket-content">
+                    <div class="input-group">
+                        <span class="input-label text-i">i·x</span>
+                        <input type="number" id="txtIx" value="1.0" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <span class="input-label text-j">j·x</span>
+                        <input type="number" id="txtJx" value="0.0" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <span class="input-label text-i">i·y</span>
+                        <input type="number" id="txtIy" value="0.0" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <span class="input-label text-j">j·y</span>
+                        <input type="number" id="txtJy" value="1.0" step="0.1">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vector Section -->
+        <div class="section">
+            <h2>Input Vector (a)</h2>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <span style="font-family: serif; font-style: italic; font-size: 18px;">a = </span>
+                <div class="bracket-container">
+                    <div class="bracket-border"></div>
+                    <div class="bracket-border bracket-border-right">
+                        <span style="position:absolute; width:10px; height:2px; background:#d1d5db; top:0; right:0;"></span>
+                        <span style="position:absolute; width:10px; height:2px; background:#d1d5db; bottom:0; right:0;"></span>
+                   </div>
+                    <div class="vector-content">
+                        <div class="input-group">
+                            <span class="input-label text-a">x</span>
+                            <input type="number" id="txtAx" value="1.0" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <span class="input-label text-a">y</span>
+                            <input type="number" id="txtAy" value="1.0" step="0.1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Canvas Area -->
+    <div class="main-content">
+        <canvas id="canvas"></canvas>
+        
+        <div class="bottom-panel">
+            <div class="info-labels">
+                <span id="lblDeterminant">Det: 1.00</span>
+                <span style="border-left: 1px solid var(--border-color); margin: 0 10px;"></span>
+                <span id="lblTransformed">T(a) = (1.00, 1.00)</span>
+            </div>
+            <div class="controls">
+                <button id="btnPlay">▶ Play</button>
+                <button id="btnStop" disabled>■ Stop</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        const state = {
+            ix: 1.0, iy: 0.0,
+            jx: 0.0, jy: 1.0,
+            ax: 1.0, ay: 1.0,
+            scale: 50,
+            isDark: false,
+            dragging: null, // 'i', 'j', or 'a'
+            animating: false,
+            animProgress: 0,
+            animDirection: 0.015,
+            snap: {} // snapshot for animation reset
+        };
+
+        // DOM Elements
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const inputs = {
+            ix: document.getElementById('txtIx'),
+            iy: document.getElementById('txtIy'),
+            jx: document.getElementById('txtJx'),
+            jy: document.getElementById('txtJy'),
+            ax: document.getElementById('txtAx'),
+            ay: document.getElementById('txtAy')
+        };
+        const lblDet = document.getElementById('lblDeterminant');
+        const lblTrans = document.getElementById('lblTransformed');
+        const btnPlay = document.getElementById('btnPlay');
+        const btnStop = document.getElementById('btnStop');
+        const themeBtn = document.getElementById('themeBtn');
+
+        // Initialization
+        function init() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Input Listeners
+            Object.keys(inputs).forEach(key => {
+                inputs[key].addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val)) {
+                        state[key] = val;
+                        updateInfo();
+                        draw();
+                    }
+                });
+            });
+
+            // Theme Listener
+            // Check system preference first
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                toggleTheme();
+            }
+            themeBtn.addEventListener('click', toggleTheme);
+
+            // Canvas Mouse Listeners
+            canvas.addEventListener('mousedown', onMouseDown);
+            canvas.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp); // Window to catch release outside canvas
+            
+            // Animation Listeners
+            btnPlay.addEventListener('click', startAnimation);
+            btnStop.addEventListener('click', stopAnimation);
+
+            draw();
+        }
+
+        // --- Drawing Logic ---
+
+        function resizeCanvas() {
+            const parent = canvas.parentElement;
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight - 70; // Subtract bottom panel height
+            draw();
+        }
+
+        function toScreenX(mathX) {
+            return canvas.width / 2 + (mathX * state.scale);
+        }
+
+        function toScreenY(mathY) {
+            return canvas.height / 2 - (mathY * state.scale);
+        }
+
+        function toMathX(screenX) {
+            return (screenX - canvas.width / 2) / state.scale;
+        }
+
+        function toMathY(screenY) {
+            return (canvas.height / 2 - screenY) / state.scale;
+        }
+
+        function getTransformedA() {
+            return {
+                x: state.ax * state.ix + state.ay * state.jx,
+                y: state.ax * state.iy + state.ay * state.jy
+            };
+        }
+
+        function draw() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const cx = w / 2;
+            const cy = h / 2;
+            const style = getComputedStyle(document.body);
+            
+            // Clear
+            ctx.clearRect(0, 0, w, h);
+
+            // Config colors based on CSS vars
+            const gridColor = state.isDark ? '#374151' : '#e5e7eb';
+            const axisColor = state.isDark ? '#4b5563' : '#9ca3af';
+            const colorI = style.getPropertyValue('--color-i').trim();
+            const colorJ = style.getPropertyValue('--color-j').trim();
+            const colorA = style.getPropertyValue('--color-a').trim();
+
+            // Draw Grid
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = gridColor;
+            
+            // Transformed Grid lines
+            const range = 20;
+            
+            // Helper to draw line
+            const drawLine = (x1, y1, x2, y2, color, width = 1, dash = []) => {
+                ctx.beginPath();
+                ctx.moveTo(toScreenX(x1), toScreenY(y1));
+                ctx.lineTo(toScreenX(x2), toScreenY(y2));
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width;
+                ctx.setLineDash(dash);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            };
+
+            // Transformed Grid
+            for (let k = -range; k <= range; k++) {
+                if (k === 0) continue;
+                // Horizontal-ish lines (parallel to i)
+                const x1 = -range * state.ix + k * state.jx;
+                const y1 = -range * state.iy + k * state.jy;
+                const x2 = range * state.ix + k * state.jx;
+                const y2 = range * state.iy + k * state.jy;
+                drawLine(x1, y1, x2, y2, gridColor);
+
+                // Vertical-ish lines (parallel to j)
+                const vx1 = k * state.ix - range * state.jx;
+                const vy1 = k * state.iy - range * state.jy;
+                const vx2 = k * state.ix + range * state.jx;
+                const vy2 = k * state.iy + range * state.jy;
+                drawLine(vx1, vy1, vx2, vy2, gridColor);
+            }
+
+            // Axes (Screen center)
+            ctx.beginPath();
+            ctx.strokeStyle = axisColor;
+            ctx.lineWidth = 2;
+            ctx.moveTo(0, cy); ctx.lineTo(w, cy);
+            ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
+            ctx.stroke();
+
+            // Dashed Boxes (Unit squares)
+            const boxColorI = colorI + '55'; // Transparent
+            const boxColorJ = colorJ + '55';
+            drawLine(-range*state.ix, -range*state.iy, range*state.ix, range*state.iy, boxColorI, 1.5, [8, 8]);
+            drawLine(-range*state.jx, -range*state.jy, range*state.jx, range*state.jy, boxColorJ, 1.5, [8, 8]);
+
+            // Vectors
+            drawVector(state.ix, state.iy, colorI, "i");
+            drawVector(state.jx, state.jy, colorJ, "j");
+            
+            const ta = getTransformedA();
+            drawVector(ta.x, ta.y, colorA, "a");
+
+            // Origin Point
+            ctx.fillStyle = state.isDark ? '#e5e5e5' : '#333';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Animation Indicator
+            if (state.animating) {
+                ctx.fillStyle = colorI;
+                ctx.font = "bold 12px sans-serif";
+                ctx.beginPath();
+                ctx.arc(w - 90, h - 20, 5, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillText("ANIMATION", w - 80, h - 16);
+            }
+        }
+
+        function drawVector(vx, vy, color, label) {
+            const sx = toScreenX(vx);
+            const sy = toScreenY(vy);
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+
+            const angle = Math.atan2(sy - cy, sx - cx);
+            const headLen = 12;
+            const lineEndLen = 6;
+
+            // Shortened line end so arrowhead fits nicely
+            const ex = sx - lineEndLen * Math.cos(angle);
+            const ey = sy - lineEndLen * Math.sin(angle);
+
+            // Shadow
+            ctx.beginPath();
+            ctx.moveTo(cx+2, cy+2);
+            ctx.lineTo(ex+2, ey+2);
+            ctx.strokeStyle = "rgba(0,0,0,0.15)";
+            ctx.lineWidth = 4;
+            ctx.lineCap = "round";
+            ctx.stroke();
+
+            // Line
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(ex, ey);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3.5;
+            ctx.stroke();
+
+            // Arrow Head
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(sx - headLen * Math.cos(angle - Math.PI / 6), sy - headLen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(sx - headLen * Math.cos(angle + Math.PI / 6), sy - headLen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // Label
+            ctx.font = "bold 15px sans-serif";
+            const metrics = ctx.measureText(label);
+            const lx = sx + 12;
+            const ly = sy - 8;
+            
+            // Label bg
+            ctx.fillStyle = color + "33"; // 20% opacity
+            ctx.fillRect(lx - 4, ly - 15, metrics.width + 8, 20);
+            
+            ctx.fillStyle = color;
+            ctx.fillText(label, lx, ly);
+        }
+
+        // --- Interaction ---
+
+        function isNear(mx, my, vx, vy) {
+            const sx = toScreenX(vx);
+            const sy = toScreenY(vy);
+            const dist = (mx - sx)**2 + (my - sy)**2;
+            return dist < 225; // 15px radius squared
+        }
+
+        function onMouseDown(e) {
+            if (state.animating) return;
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            // Check basis vectors first
+            if (isNear(mx, my, state.ix, state.iy)) state.dragging = 'i';
+            else if (isNear(mx, my, state.jx, state.jy)) state.dragging = 'j';
+            else {
+                const ta = getTransformedA();
+                if (isNear(mx, my, ta.x, ta.y)) state.dragging = 'a';
+            }
+
+            if (state.dragging) {
+                canvas.style.cursor = 'move';
+            }
+        }
+
+        function onMouseMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            if (state.animating) return;
+
+            // Cursor hover effect
+            if (!state.dragging) {
+                const ta = getTransformedA();
+                if (isNear(mx, my, state.ix, state.iy) || 
+                    isNear(mx, my, state.jx, state.jy) || 
+                    isNear(mx, my, ta.x, ta.y)) {
+                    canvas.style.cursor = 'pointer';
+                } else {
+                    canvas.style.cursor = 'crosshair';
+                }
+                return;
+            }
+
+            // Dragging logic
+            let mathX = toMathX(mx);
+            let mathY = toMathY(my);
+
+            // Snap to grid (0.1 proximity)
+            if (Math.abs(mathX - Math.round(mathX)) < 0.1) mathX = Math.round(mathX);
+            if (Math.abs(mathY - Math.round(mathY)) < 0.1) mathY = Math.round(mathY);
+
+            if (state.dragging === 'i') {
+                state.ix = mathX;
+                state.iy = mathY;
+            } else if (state.dragging === 'j') {
+                state.jx = mathX;
+                state.jy = mathY;
+            } else if (state.dragging === 'a') {
+                // Calculate original 'a' based on inverse matrix
+                const det = state.ix * state.jy - state.iy * state.jx;
+                if (Math.abs(det) > 0.0001) {
+                    let newAx = (mathX * state.jy - mathY * state.jx) / det;
+                    let newAy = (mathX * -state.iy + mathY * state.ix) / det;
+                    
+                    if (Math.abs(newAx - Math.round(newAx)) < 0.1) newAx = Math.round(newAx);
+                    if (Math.abs(newAy - Math.round(newAy)) < 0.1) newAy = Math.round(newAy);
+                    
+                    state.ax = newAx;
+                    state.ay = newAy;
+                }
+            }
+
+            updateUIFromState();
+            updateInfo();
+            draw();
+        }
+
+        function onMouseUp() {
+            state.dragging = null;
+            if (!state.animating) canvas.style.cursor = 'crosshair';
+        }
+
+        // --- Logic & Helper ---
+
+        function updateUIFromState() {
+            inputs.ix.value = format(state.ix);
+            inputs.iy.value = format(state.iy);
+            inputs.jx.value = format(state.jx);
+            inputs.jy.value = format(state.jy);
+            inputs.ax.value = format(state.ax);
+            inputs.ay.value = format(state.ay);
+        }
+
+        function updateInfo() {
+            const det = state.ix * state.jy - state.iy * state.jx;
+            const ta = getTransformedA();
+            lblDet.textContent = `Det: ${det.toFixed(2)}`;
+            lblTrans.textContent = `T(a) = (${ta.x.toFixed(2)}, ${ta.y.toFixed(2)})`;
+        }
+
+        function format(num) {
+            return parseFloat(num.toFixed(2));
+        }
+
+        function toggleTheme() {
+            state.isDark = !state.isDark;
+            document.body.setAttribute('data-theme', state.isDark ? 'dark' : 'light');
+            themeBtn.textContent = state.isDark ? '☀️' : '🌓';
+            draw();
+        }
+
+        // --- Animation ---
+
+        function lerp(start, end, t) {
+            return start + (end - start) * t;
+        }
+
+        function startAnimation() {
+            if (state.animating) return;
+            
+            // Save state
+            state.snap = { ix: state.ix, iy: state.iy, jx: state.jx, jy: state.jy };
+            
+            state.animating = true;
+            state.animProgress = 0;
+            state.animDirection = 0.015;
+            
+            // Disable Inputs
+            setInputsEnabled(false);
+            btnPlay.disabled = true;
+            btnStop.disabled = false;
+
+            animateFrame();
+        }
+
+        function stopAnimation() {
+            state.animating = false;
+            // Restore
+            state.ix = state.snap.ix;
+            state.iy = state.snap.iy;
+            state.jx = state.snap.jx;
+            state.jy = state.snap.jy;
+            
+            updateUIFromState();
+            updateInfo();
+            draw();
+            
+            setInputsEnabled(true);
+            btnPlay.disabled = false;
+            btnStop.disabled = true;
+        }
+
+        function animateFrame() {
+            if (!state.animating) return;
+
+            state.animProgress += state.animDirection;
+            
+            // Bounce logic
+            if (state.animProgress >= 1.0) {
+                state.animProgress = 1.0;
+                state.animDirection = -0.015;
+            } else if (state.animProgress <= 0.0) {
+                state.animProgress = 0.0;
+                state.animDirection = 0.015;
+            }
+
+            // Ease function
+            const t = state.animProgress * state.animProgress * (3 - 2 * state.animProgress);
+
+            // Interpolate (Start is Identity, End is Snapshot)
+            state.ix = lerp(state.snap.ix, 1.0, t);
+            state.iy = lerp(state.snap.iy, 0.0, t);
+            state.jx = lerp(state.snap.jx, 0.0, t);
+            state.jy = lerp(state.snap.jy, 1.0, t);
+
+            updateUIFromState();
+            updateInfo();
+            draw();
+
+            requestAnimationFrame(animateFrame);
+        }
+
+        function setInputsEnabled(enabled) {
+            Object.values(inputs).forEach(inp => inp.disabled = !enabled);
+        }
+
+        // Run
+        init();
+
+    </script>
+</body>
+</html>
