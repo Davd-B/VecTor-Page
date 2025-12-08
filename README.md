@@ -9,6 +9,18 @@
 
 ![Application Demo](/img/Video2.gif)
 
+<p align="center">
+  <!-- Main Download Button -->
+  <a href="https://github.com/Davd-B/VecTor-Page/releases/latest/download/VecTor-Installer.exe">
+    <img src="https://img.shields.io/badge/Download-Installer_(.exe)-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Download Installer" />
+  </a>
+
+  <!-- GitHub Button -->
+  <a href="https://github.com/Davd-B/VecTor-Page">
+    <img src="https://img.shields.io/badge/GitHub-Repo-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub Repo" />
+  </a>
+</p>
+
 ## 📑 Table of Contents
 - [Quick Start](#-quick-start-download--run)
 - [Killer Features](#-killer-features)
