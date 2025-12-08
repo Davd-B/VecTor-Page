@@ -4,8 +4,8 @@
 
 ![Project Status](https://img.shields.io/badge/status-active-success.svg)
 ![Java](https://img.shields.io/badge/java-%23ED8B00.svg?style=flat&logo=openjdk&logoColor=white)
-[![Installer (.exe)]]([https://github.com/yourusername/VecTor/releases](https://github.com/Davd-B/VecTor-Page/releases/latest/download/VecTor-Installer.exe))
-![Web DEMO]([https://img.shields.io/badge/java-%23ED8B00.svg?style=flat&logo=openjdk&logoColor=white](https://davd-b.github.io/VecTor-Page/web/))
+[![Installer (.exe)](https://img.shields.io/badge/Installer-.exe-blue?style=flat&logo=windows)](https://github.com/Davd-B/VecTor-Page/releases/latest/download/VecTor-Installer.exe)
+[![Web DEMO](https://img.shields.io/badge/Web-Demo-brightgreen?style=flat&logo=html5)](https://davd-b.github.io/VecTor-Page/web/)
 
 ## 🚀 Quick Start (Download & Run)
 
