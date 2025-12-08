@@ -138,7 +138,14 @@ Contributions are welcome!
 
 ## 📄 License
 
-Distributed under the Unlicense License. See [unlicense.org](https://unlicense.org/) for more information.
+Distributed under the Unlicense License. 
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+See [unlicense.org](https://unlicense.org/) for more information.
 
 ---
 
