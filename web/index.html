@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VecTor - 3D/2D Vector Visualizer</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --card-color: #f3f4f6;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+            --input-bg: #ffffff;
+            --grid-line: #e5e7eb;
+            --axis-line: #9ca3af;
+            
+            --color-i: #ef4444; /* Red */
+            --color-j: #22c55e; /* Green */
+            --color-k: #3b82f6; /* Blue (Matched to Java) */
+            --color-a: #f59e0b; /* Orange (Matched to Java) */
+            --accent: #6366f1;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #14161a; /* Matched closer to Java Dark */
+            --card-color: #1f2937;
+            --text-color: #f3f4f6;
+            --border-color: #374151;
+            --input-bg: #374151;
+            --grid-line: #374151;
+            --axis-line: #4b5563;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; transition: background-color 0.3s, color 0.3s; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 420px;
+            background-color: var(--card-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            z-index: 10;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            overflow-y: auto;
+        }
+
+        h1 { font-size: 24px; margin-bottom: 20px; font-weight: 700; }
+        h2 { font-size: 16px; margin-bottom: 10px; font-weight: 600; opacity: 0.9; }
+
+        .section {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        /* Legacy Promo Section */
+        .legacy-section {
+            border: 1px solid var(--accent);
+            background: linear-gradient(145deg, var(--bg-color), var(--card-color));
+        }
+
+        .legacy-text {
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 15px;
+            opacity: 0.85;
+        }
+
+        .github-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background-color: #24292e;
+            color: white;
+            text-decoration: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 13px;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+
+        .github-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .github-btn svg {
+            fill: white;
+            width: 20px;
+            height: 20px;
+        }
+
+        [data-theme="dark"] .github-btn {
+            background-color: #ffffff;
+            color: #1f2937;
+        }
+        [data-theme="dark"] .github-btn svg {
+            fill: #1f2937;
+        }
+
+        /* Matrix/Vector Brackets Styling */
+        .bracket-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 10px 15px;
+        }
+        
+        .bracket-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Default 2D */
+            gap: 10px;
+            transition: all 0.3s;
+        }
+
+        .bracket-content.mode-3d {
+            grid-template-columns: 1fr 1fr 1fr; /* 3D Mode */
+        }
+
+        .vector-content {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .bracket-border {
+            position: absolute;
+            top: 0; bottom: 0; left: 0; right: 0;
+            border: 2px solid #d1d5db;
+            border-top: none;
+            border-bottom: none;
+            width: 100%;
+            pointer-events: none;
+        }
+        .bracket-border::before, .bracket-border::after {
+            content: ''; position: absolute; width: 10px; height: 2px; background: #d1d5db;
+        }
+        .bracket-border::before { top: 0; left: 0; }
+        .bracket-border::after { bottom: 0; left: 0; }
+        .bracket-border-right::before { top: 0; right: 0; left: auto; }
+        .bracket-border-right::after { bottom: 0; right: 0; left: auto; }
+
+        /* Input Fields */
+        .input-group {
+            display: flex;
+            align-items: center;
+        }
+        .input-group.hidden {
+            display: none;
+        }
+
+        .input-label {
+            font-weight: bold;
+            margin-right: 5px;
+            width: 30px;
+            font-size: 13px;
+            text-align: right;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 6px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 14px;
+            text-align: center;
+            outline: none;
+        }
+        input[type="number"]:focus { border-color: var(--accent); }
+
+        /* Canvas Area */
+        .main-content {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        canvas {
+            flex: 1;
+            display: block;
+        }
+
+        /* Bottom Panel */
+        .bottom-panel {
+            height: 70px;
+            background-color: var(--card-color);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+        }
+
+        .info-labels {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        button:hover { opacity: 0.9; }
+        button:disabled { background-color: var(--axis-line); cursor: not-allowed; }
+
+        .top-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+        }
+
+        .icon-btn {
+            background: var(--card-color);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 16px;
+        }
+
+        .hint-text {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            color: var(--axis-line);
+            font-size: 12px;
+            font-weight: bold;
+            pointer-events: none;
+        }
+
+        /* Color Helpers */
+        .text-i { color: var(--color-i); }
+        .text-j { color: var(--color-j); }
+        .text-k { color: var(--color-k); }
+        .text-a { color: var(--color-a); }
+
+        /* Responsive */
+        @media (max-width: 800px) {
+            body { flex-direction: column; overflow-y: auto; }
+            .sidebar { width: 100%; height: auto; order: 2; }
+            .main-content { height: 60vh; order: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Right Controls -->
+    <div class="top-controls">
+        <button class="icon-btn" id="modeBtn" title="Switch 2D/3D">2D</button>
+        <button class="icon-btn" id="themeBtn" title="Toggle Dark Mode">🌓</button>
+    </div>
+
+    <!-- Left Panel -->
+    <div class="sidebar">
+        <h1>Transformations</h1>
+
+        <!-- Matrix Section -->
+        <div class="section">
+            <h2>Matrix T</h2>
+            <div class="bracket-container">
+                <div class="bracket-border"></div>
+                <div class="bracket-border bracket-border-right">
+                     <span style="position:absolute; width:10px; height:2px; background:#d1d5db; top:0; right:0;"></span>
+                     <span style="position:absolute; width:10px; height:2px; background:#d1d5db; bottom:0; right:0;"></span>
+                </div>
+                
+                <div class="bracket-content" id="matrixContainer">
+                    <!-- Row 1 -->
+                    <div class="input-group">
+                        <span class="input-label text-i">i·x</span>
+                        <input type="number" id="txtIx" value="1.0" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <span class="input-label text-j">j·x</span>
+                        <input type="number" id="txtJx" value="0.0" step="0.1">
+                    </div>
+                    <div class="input-group input-3d hidden">
+                        <span class="input-label text-k">k·x</span>
+                        <input type="number" id="txtKx" value="0.0" step="0.1">
+                    </div>
+
+                    <!-- Row 2 -->
+                    <div class="input-group">
+                        <span class="input-label text-i">i·y</span>
+                        <input type="number" id="txtIy" value="0.0" step="0.1">
+                    </div>
+                    <div class="input-group">
+                        <span class="input-label text-j">j·y</span>
+                        <input type="number" id="txtJy" value="1.0" step="0.1">
+                    </div>
+                    <div class="input-group input-3d hidden">
+                        <span class="input-label text-k">k·y</span>
+                        <input type="number" id="txtKy" value="0.0" step="0.1">
+                    </div>
+
+                    <!-- Row 3 (3D only) -->
+                    <div class="input-group input-3d hidden">
+                        <span class="input-label text-i">i·z</span>
+                        <input type="number" id="txtIz" value="0.0" step="0.1">
+                    </div>
+                    <div class="input-group input-3d hidden">
+                        <span class="input-label text-j">j·z</span>
+                        <input type="number" id="txtJz" value="0.0" step="0.1">
+                    </div>
+                    <div class="input-group input-3d hidden">
+                        <span class="input-label text-k">k·z</span>
+                        <input type="number" id="txtKz" value="1.0" step="0.1">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vector Section -->
+        <div class="section">
+            <h2>Input Vector (a)</h2>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <span style="font-family: serif; font-style: italic; font-size: 18px;">a = </span>
+                <div class="bracket-container">
+                    <div class="bracket-border"></div>
+                    <div class="bracket-border bracket-border-right">
+                        <span style="position:absolute; width:10px; height:2px; background:#d1d5db; top:0; right:0;"></span>
+                        <span style="position:absolute; width:10px; height:2px; background:#d1d5db; bottom:0; right:0;"></span>
+                   </div>
+                    <div class="vector-content">
+                        <div class="input-group">
+                            <span class="input-label text-a">x</span>
+                            <input type="number" id="txtAx" value="1.0" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <span class="input-label text-a">y</span>
+                            <input type="number" id="txtAy" value="1.0" step="0.1">
+                        </div>
+                        <div class="input-group input-3d hidden">
+                            <span class="input-label text-a">z</span>
+                            <input type="number" id="txtAz" value="1.0" step="0.1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legacy Promo Section -->
+        <div class="section legacy-section">
+            <h2>Try VecTor Legacy</h2>
+            <p class="legacy-text">
+                VecTor Legacy is our best software yet: with linear algebra operations, symbolic math, a formula history tab to take notes and better UX.
+            </p>
+            <a href="https://github.com/Davd-B/VecTor-Page/tree/main" target="_blank" class="github-btn">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                Download VecTor Legacy
+            </a>
+        </div>
+
+    </div>
+
+    <!-- Main Canvas Area -->
+    <div class="main-content">
+        <canvas id="canvas"></canvas>
+        <div class="hint-text" id="hintText">Drag vectors to edit</div>
+        
+        <div class="bottom-panel">
+            <div class="info-labels">
+                <span id="lblDeterminant">Det: 1.00</span>
+                <span id="lblTransformed">T(a) = (1.00, 1.00)</span>
+            </div>
+            <div class="controls">
+                <button id="btnPlay">▶ Play</button>
+                <button id="btnStop" disabled>■ Stop</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        const state = {
+            // Basis Vectors (Columns of Matrix)
+            ix: 1.0, iy: 0.0, iz: 0.0,
+            jx: 0.0, jy: 1.0, jz: 0.0,
+            kx: 0.0, ky: 0.0, kz: 1.0,
+            // Input Vector
+            ax: 1.0, ay: 1.0, az: 1.0,
+            
+            // View Settings
+            scale: 80,
+            isDark: false,
+            is3D: false,
+            
+            // Camera (Matches Java Implementation)
+            cameraPitch: 0.4,
+            cameraYaw: -0.6,
+            
+            // Interaction
+            dragging: null, // 'i', 'j', 'a' for 2D mode
+            isRotating: false, // for 3D camera
+            lastMx: 0,
+            lastMy: 0,
+            
+            // Animation
+            animating: false,
+            animProgress: 0,
+            animDirection: 0.015,
+            snap: {} 
+        };
+
+        // DOM Elements
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const inputs = {
+            ix: document.getElementById('txtIx'), iy: document.getElementById('txtIy'), iz: document.getElementById('txtIz'),
+            jx: document.getElementById('txtJx'), jy: document.getElementById('txtJy'), jz: document.getElementById('txtJz'),
+            kx: document.getElementById('txtKx'), ky: document.getElementById('txtKy'), kz: document.getElementById('txtKz'),
+            ax: document.getElementById('txtAx'), ay: document.getElementById('txtAy'), az: document.getElementById('txtAz'),
+        };
+        const lblDet = document.getElementById('lblDeterminant');
+        const lblTrans = document.getElementById('lblTransformed');
+        const btnPlay = document.getElementById('btnPlay');
+        const btnStop = document.getElementById('btnStop');
+        const themeBtn = document.getElementById('themeBtn');
+        const modeBtn = document.getElementById('modeBtn');
+        const hintText = document.getElementById('hintText');
+        const matrixContainer = document.getElementById('matrixContainer');
+        const input3DFields = document.querySelectorAll('.input-3d');
+
+        // Initialization
+        function init() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Input Listeners
+            Object.keys(inputs).forEach(key => {
+                inputs[key].addEventListener('input', (e) => {
+                    // Replace comma with dot for European inputs
+                    let valStr = e.target.value.replace(',', '.');
+                    const val = parseFloat(valStr);
+                    if (!isNaN(val)) {
+                        state[key] = val;
+                        updateInfo();
+                        draw();
+                    }
+                });
+            });
+
+            // Theme Check
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                toggleTheme();
+            }
+            themeBtn.addEventListener('click', toggleTheme);
+            modeBtn.addEventListener('click', toggleMode);
+
+            // Canvas Interaction
+            canvas.addEventListener('mousedown', onMouseDown);
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+            
+            // Animation
+            btnPlay.addEventListener('click', startAnimation);
+            btnStop.addEventListener('click', stopAnimation);
+
+            draw();
+        }
+
+        // --- View & Projection Logic ---
+
+        function toggleMode() {
+            state.is3D = !state.is3D;
+            modeBtn.textContent = state.is3D ? "3D" : "2D";
+            modeBtn.style.background = state.is3D ? "var(--accent)" : "var(--card-color)";
+            modeBtn.style.color = state.is3D ? "#fff" : "var(--text-color)";
+            
+            hintText.textContent = state.is3D ? "Drag to rotate view" : "Drag vectors to edit";
+
+            if (state.is3D) {
+                matrixContainer.classList.add('mode-3d');
+                input3DFields.forEach(el => el.classList.remove('hidden'));
+                canvas.style.cursor = 'move';
+            } else {
+                matrixContainer.classList.remove('mode-3d');
+                input3DFields.forEach(el => el.classList.add('hidden'));
+                canvas.style.cursor = 'crosshair';
+            }
+
+            updateInfo();
+            draw();
+        }
+
+        function resizeCanvas() {
+            const parent = canvas.parentElement;
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight - 70;
+            draw();
+        }
+
+        // Transforms mathematical 3D coordinates (x,y,z) to Canvas 2D coordinates (u,v)
+        function project(x, y, z = 0) {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+
+            if (!state.is3D) {
+                // Standard 2D cartesian (y up)
+                return {
+                    u: cx + (x * state.scale),
+                    v: cy - (y * state.scale)
+                };
+            } else {
+                // 3D Orbit Camera Projection (Ported from Java Code)
+                // Yaw Rotation
+                const x_yaw = x * Math.cos(state.cameraYaw) - y * Math.sin(state.cameraYaw);
+                const y_yaw = x * Math.sin(state.cameraYaw) + y * Math.cos(state.cameraYaw);
+                
+                // Pitch Rotation
+                const y_pitch = y_yaw * Math.cos(state.cameraPitch) - z * Math.sin(state.cameraPitch);
+                const z_pitch = y_yaw * Math.sin(state.cameraPitch) + z * Math.cos(state.cameraPitch);
+
+                // Project to screen (Perspective scale is constant here, effectively Orthographic with Rotation)
+                return { 
+                    u: cx + x_yaw * state.scale, 
+                    v: cy - z_pitch * state.scale 
+                };
+            }
+        }
+
+        // Reverse projection for Mouse Interaction (2D only)
+        function unproject2D(u, v) {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            return {
+                x: (u - cx) / state.scale,
+                y: (cy - v) / state.scale
+            };
+        }
+
+        function getTransformedPoint(x, y, z) {
+            // Apply Matrix T to point (x,y,z)
+            return {
+                x: x * state.ix + y * state.jx + z * state.kx,
+                y: x * state.iy + y * state.jy + z * state.ky,
+                z: x * state.iz + y * state.jz + z * state.kz
+            };
+        }
+
+        function getTransformedA() {
+            return getTransformedPoint(state.ax, state.ay, state.az);
+        }
+
+        function getDeterminant() {
+            if (!state.is3D) {
+                return state.ix * state.jy - state.iy * state.jx;
+            } else {
+                // Sarrus rule
+                return (
+                    state.ix * (state.jy * state.kz - state.jz * state.ky) -
+                    state.jx * (state.iy * state.kz - state.iz * state.ky) +
+                    state.kx * (state.iy * state.jz - state.iz * state.jy)
+                );
+            }
+        }
+
+        // --- Drawing Logic ---
+
+        function draw() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const style = getComputedStyle(document.body);
+            
+            ctx.clearRect(0, 0, w, h);
+
+            // Colors
+            // Grid lines are subtle
+            const gridColor = state.isDark ? 'rgba(70, 75, 85, 0.4)' : 'rgba(200, 200, 200, 0.6)';
+            const axisColor = state.isDark ? 'rgba(150, 150, 150, 0.7)' : 'rgba(100, 100, 100, 0.7)';
+            
+            const colorI = style.getPropertyValue('--color-i').trim();
+            const colorJ = style.getPropertyValue('--color-j').trim();
+            const colorK = style.getPropertyValue('--color-k').trim();
+            const colorA = style.getPropertyValue('--color-a').trim();
+
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+
+            // Helper for lines
+            const drawLine = (p1, p2, color, width = 1, dash = []) => {
+                const s1 = project(p1.x, p1.y, p1.z);
+                const s2 = project(p2.x, p2.y, p2.z);
+                ctx.beginPath();
+                ctx.moveTo(s1.u, s1.v);
+                ctx.lineTo(s2.u, s2.v);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width;
+                ctx.setLineDash(dash);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            };
+
+            const range = 5; 
+
+            // --- Draw Transformed Grid ---
+            // Matches Java logic: iterate n, draw line from transformed(-range, n) to transformed(range, n)
+            // This visualizes the plane defined by i and j
+            
+            for (let n = -range; n <= range; n++) {
+                const color = (n === 0) ? axisColor : gridColor;
+                const width = (n === 0) ? 2 : 1;
+
+                // Horizontal lines (varying x)
+                // In Java: applyTransform(-range, n, 0) -> applyTransform(range, n, 0)
+                const pStart = getTransformedPoint(-range, n, 0);
+                const pEnd = getTransformedPoint(range, n, 0);
+                drawLine(pStart, pEnd, color, width);
+
+                // Vertical lines (varying y)
+                // In Java: applyTransform(n, -range, 0) -> applyTransform(n, range, 0)
+                const qStart = getTransformedPoint(n, -range, 0);
+                const qEnd = getTransformedPoint(n, range, 0);
+                drawLine(qStart, qEnd, color, width);
+            }
+
+            // --- Vectors ---
+            
+            // Basis Vectors
+            drawVector(state.ix, state.iy, state.iz, colorI, "i");
+            drawVector(state.jx, state.jy, state.jz, colorJ, "j");
+            if (state.is3D) {
+                drawVector(state.kx, state.ky, state.kz, colorK, "k");
+            }
+
+            // Result Vector
+            const ta = getTransformedA();
+            drawVector(ta.x, ta.y, ta.z, colorA, "a");
+
+            // Origin Dot
+            const origin = project(0,0,0);
+            ctx.fillStyle = state.isDark ? '#fff' : '#000';
+            ctx.beginPath();
+            ctx.arc(origin.u, origin.v, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawVector(vx, vy, vz, color, label) {
+            const start = project(0, 0, 0);
+            const end = project(vx, vy, vz);
+            
+            // 3D Depth Helper (Shadow Line)
+            // Draw dotted line from tip to floor (z=0)
+            if (state.is3D && Math.abs(vz) > 0.05) {
+                const floorPt = project(vx, vy, 0);
+                
+                // Shadow Line
+                ctx.beginPath();
+                ctx.moveTo(end.u, end.v);
+                ctx.lineTo(floorPt.u, floorPt.v);
+                ctx.strokeStyle = color;
+                ctx.globalAlpha = 0.3; // Fade out shadow line
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]); // Dotted
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.globalAlpha = 1.0;
+
+                // Floor Dot
+                ctx.beginPath();
+                ctx.arc(floorPt.u, floorPt.v, 2, 0, Math.PI*2);
+                ctx.fillStyle = color;
+                ctx.globalAlpha = 0.3;
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+
+            const angle = Math.atan2(end.v - start.v, end.u - start.u);
+            const headLen = 12;
+
+            // Main Vector Line
+            ctx.beginPath();
+            ctx.moveTo(start.u, start.v);
+            ctx.lineTo(end.u, end.v);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Arrow Head
+            ctx.beginPath();
+            ctx.moveTo(end.u, end.v);
+            ctx.lineTo(end.u - headLen * Math.cos(angle - Math.PI / 6), end.v - headLen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(end.u - headLen * Math.cos(angle + Math.PI / 6), end.v - headLen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // Label
+            ctx.font = "bold 14px sans-serif";
+            const lx = end.u + 8;
+            const ly = end.v - 8;
+            
+            // Label Shadow for readability
+            ctx.fillStyle = state.isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.7)';
+            ctx.fillText(label, lx+1, ly+1);
+            
+            ctx.fillStyle = color;
+            ctx.fillText(label, lx, ly);
+        }
+
+        // --- Interaction ---
+
+        function isNear(mx, my, vx, vy) {
+            // Only used in 2D
+            const p = project(vx, vy, 0);
+            const dist = (mx - p.u)**2 + (my - p.v)**2;
+            return dist < 225; 
+        }
+
+        function onMouseDown(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            // 3D Mode: Camera Rotation
+            if (state.is3D) {
+                state.isRotating = true;
+                state.lastMx = mx;
+                state.lastMy = my;
+                return;
+            }
+
+            // 2D Mode: Dragging Vectors
+            if (state.animating) return;
+            
+            if (isNear(mx, my, state.ix, state.iy)) state.dragging = 'i';
+            else if (isNear(mx, my, state.jx, state.jy)) state.dragging = 'j';
+            else {
+                const ta = getTransformedA();
+                if (isNear(mx, my, ta.x, ta.y)) state.dragging = 'a';
+            }
+
+            if (state.dragging) canvas.style.cursor = 'move';
+        }
+
+        function onMouseMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            // Handle 3D Rotation
+            if (state.is3D) {
+                if (state.isRotating) {
+                    const dx = mx - state.lastMx;
+                    const dy = my - state.lastMy;
+                    
+                    // Match Java sensitivity (0.01)
+                    state.cameraYaw += dx * 0.01;
+                    state.cameraPitch += dy * 0.01;
+                    
+                    // Clamp Pitch to avoid flipping (max +/- PI/2)
+                    const limit = Math.PI / 2 - 0.1;
+                    state.cameraPitch = Math.max(-limit, Math.min(limit, state.cameraPitch));
+
+                    state.lastMx = mx;
+                    state.lastMy = my;
+                    draw();
+                }
+                return;
+            }
+
+            // Handle 2D Dragging
+            if (state.animating) return;
+
+            // Hover state
+            if (!state.dragging) {
+                const ta = getTransformedA();
+                if (isNear(mx, my, state.ix, state.iy) || isNear(mx, my, state.jx, state.jy) || isNear(mx, my, ta.x, ta.y)) {
+                    canvas.style.cursor = 'pointer';
+                } else {
+                    canvas.style.cursor = 'crosshair';
+                }
+                return;
+            }
+
+            // Dragging Logic
+            let mathPos = unproject2D(mx, my);
+            let mathX = mathPos.x;
+            let mathY = mathPos.y;
+
+            // Snap to grid
+            if (Math.abs(mathX - Math.round(mathX)) < 0.1) mathX = Math.round(mathX);
+            if (Math.abs(mathY - Math.round(mathY)) < 0.1) mathY = Math.round(mathY);
+
+            if (state.dragging === 'i') {
+                state.ix = mathX; state.iy = mathY;
+            } else if (state.dragging === 'j') {
+                state.jx = mathX; state.jy = mathY;
+            } else if (state.dragging === 'a') {
+                // Inverse solve for 2D to keep vector 'a' tip under mouse
+                const det = state.ix * state.jy - state.iy * state.jx;
+                if (Math.abs(det) > 0.0001) {
+                    let newAx = (mathX * state.jy - mathY * state.jx) / det;
+                    let newAy = (mathX * -state.iy + mathY * state.ix) / det;
+                    state.ax = parseFloat(newAx.toFixed(2));
+                    state.ay = parseFloat(newAy.toFixed(2));
+                }
+            }
+
+            updateUIFromState();
+            updateInfo();
+            draw();
+        }
+
+        function onMouseUp() {
+            state.dragging = null;
+            state.isRotating = false;
+            if (!state.animating) {
+                canvas.style.cursor = state.is3D ? 'move' : 'crosshair';
+            }
+        }
+
+        // --- Logic ---
+
+        function updateUIFromState() {
+            inputs.ix.value = state.ix; inputs.iy.value = state.iy; inputs.iz.value = state.iz;
+            inputs.jx.value = state.jx; inputs.jy.value = state.jy; inputs.jz.value = state.jz;
+            inputs.kx.value = state.kx; inputs.ky.value = state.ky; inputs.kz.value = state.kz;
+            inputs.ax.value = state.ax; inputs.ay.value = state.ay; inputs.az.value = state.az;
+        }
+
+        function updateInfo() {
+            const det = getDeterminant();
+            const ta = getTransformedA();
+            lblDet.textContent = `Det: ${det.toFixed(2)}`;
+            if(state.is3D) {
+                lblTrans.textContent = `T(a)=(${ta.x.toFixed(2)}, ${ta.y.toFixed(2)}, ${ta.z.toFixed(2)})`;
+            } else {
+                lblTrans.textContent = `T(a)=(${ta.x.toFixed(2)}, ${ta.y.toFixed(2)})`;
+            }
+        }
+
+        function toggleTheme() {
+            state.isDark = !state.isDark;
+            document.body.setAttribute('data-theme', state.isDark ? 'dark' : 'light');
+            themeBtn.textContent = state.isDark ? '☀️' : '🌓';
+            draw();
+        }
+
+        // --- Animation ---
+        function lerp(start, end, t) { return start + (end - start) * t; }
+
+        function startAnimation() {
+            if (state.animating) return;
+            state.snap = { ...state }; // clone state
+            state.animating = true;
+            state.animProgress = 0;
+            state.animDirection = 0.015;
+            
+            // Disable Inputs
+            Object.values(inputs).forEach(inp => inp.disabled = true);
+            btnPlay.disabled = true;
+            btnStop.disabled = false;
+            animateFrame();
+        }
+
+        function stopAnimation() {
+            state.animating = false;
+            // Restore everything except view flags and rotation
+            const was3D = state.is3D;
+            const wasDark = state.isDark;
+            const yaw = state.cameraYaw;
+            const pitch = state.cameraPitch;
+
+            Object.assign(state, state.snap);
+            
+            state.is3D = was3D;
+            state.isDark = wasDark;
+            state.cameraYaw = yaw;
+            state.cameraPitch = pitch;
+            
+            updateUIFromState();
+            updateInfo();
+            draw();
+            
+            Object.values(inputs).forEach(inp => inp.disabled = false);
+            btnPlay.disabled = false;
+            btnStop.disabled = true;
+        }
+
+        function animateFrame() {
+            if (!state.animating) return;
+
+            state.animProgress += state.animDirection;
+            if (state.animProgress >= 1.0) { state.animProgress = 1.0; state.animDirection = -0.015; }
+            else if (state.animProgress <= 0.0) { state.animProgress = 0.0; state.animDirection = 0.015; }
+
+            const t = state.animProgress * state.animProgress * (3 - 2 * state.animProgress);
+
+            // Interpolate towards Identity Matrix
+            state.ix = lerp(state.snap.ix, 1.0, t);
+            state.iy = lerp(state.snap.iy, 0.0, t);
+            state.iz = lerp(state.snap.iz, 0.0, t);
+            
+            state.jx = lerp(state.snap.jx, 0.0, t);
+            state.jy = lerp(state.snap.jy, 1.0, t);
+            state.jz = lerp(state.snap.jz, 0.0, t);
+
+            state.kx = lerp(state.snap.kx, 0.0, t);
+            state.ky = lerp(state.snap.ky, 0.0, t);
+            state.kz = lerp(state.snap.kz, 1.0, t);
+
+            updateUIFromState();
+            updateInfo();
+            draw();
+            requestAnimationFrame(animateFrame);
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
