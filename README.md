@@ -142,4 +142,4 @@ Distributed under the Unlicense License. See [unlicense.org](https://unlicense.o
 
 ---
 
-*Made with ❤️ and Java Swing. This legacy version is intended as a student project at the University of Genoa - Italy*
+*Made with Java Swing. This Vanilla version is intended as a student project at the University of Genoa - Italy*
