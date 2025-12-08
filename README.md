@@ -7,6 +7,17 @@
 [![Installer (.exe)](https://img.shields.io/badge/Installer-.exe-blue?style=flat&logo=windows)](https://github.com/Davd-B/VecTor-Page/releases/latest/download/VecTor-Installer.exe)
 [![Web DEMO](https://img.shields.io/badge/Web-Demo-brightgreen?style=flat&logo=html5)](https://davd-b.github.io/VecTor-Page/web/)
 
+## 📑 Table of Contents
+- [Quick Start](#-quick-start-download--run)
+- [Killer Features](#-killer-features)
+- [Development Setup](#-development-setup-intellij-idea)
+- [Usage Guide](#-usage-guide)
+- [Project Structure](#-project-structure)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
 ## 🚀 Quick Start (Download & Run)
 
 Don't want to compile the code? You can simply download the application.
@@ -19,7 +30,7 @@ Don't want to compile the code? You can simply download the application.
 
 ---
 
-## Killer Features
+## 🏗 Killer Features
 
 ### 🧮 Symbolic & Numeric Calculation
 *   **Smart Parsing:** Define variables (e.g., `A`, `x`) and perform operations like `A * x` or `A + B`.
@@ -33,7 +44,7 @@ Don't want to compile the code? You can simply download the application.
 *   **Formula History:** Keeps a scrollable log of all your calculations.
 *   **Zoomable Interface:** Dynamic font scaling using `Ctrl +` and `Ctrl -`.
 
-### 📊 Interactive 2D and 3d Visualizer
+### 📊 Interactive 2D and 3D Visualizer
 *   **Linear Transformations:** Visualize how a matrix transforms space by manipulating basis vectors $\hat{i}$, $\hat{j}$ and $\hat{k}$.
 *   **Animation:** Watch smooth interpolations between the Identity Matrix and your custom transformation.
 
@@ -123,3 +134,5 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ---
 
 *Made with ❤️ and Java Swing. This legacy version is intended as a student project at the University of Genoa - Italy*
+
+![Application Demo](img/video2.gif)
