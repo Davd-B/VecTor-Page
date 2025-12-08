@@ -138,7 +138,7 @@ Contributions are welcome!
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Distributed under the Unlicense License. See [unlicense.org](https://unlicense.org/) for more information.
 
 ---
 
