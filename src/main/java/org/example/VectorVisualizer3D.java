@@ -1,0 +1,750 @@
+package org.example;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.geom.*;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+public class VectorVisualizer3D extends JDialog {
+
+    // --- 3D Data Model (Z-Up System) ---
+    private double ix = 1.0, iy = 0.0, iz = 0.0;
+    private double jx = 0.0, jy = 1.0, jz = 0.0;
+    private double kx = 0.0, ky = 0.0, kz = 1.0;
+    private double ax = 1.0, ay = 1.0, az = 1.0;
+
+    // --- Camera / View ---
+    private double cameraPitch = 0.4;
+    private double cameraYaw = -0.6;
+    private static final double SCALE = 80.0;
+
+    // --- UI Components ---
+    private ScenePanel canvas;
+    private JTextField txtIx, txtIy, txtIz;
+    private JTextField txtJx, txtJy, txtJz;
+    private JTextField txtKx, txtKy, txtKz;
+    private JTextField txtAx, txtAy, txtAz;
+    private JCheckBox chkShowEigen;
+
+    private JButton btnPlay, btnStop;
+    private JLabel lblDeterminant, lblTransformed;
+    private boolean isUpdatingFromCode = false;
+
+    // --- Animation ---
+    private Timer animTimer;
+    private double animProgress = 0.0;
+    private double animDirection = 0.01;
+    private double sIx, sIy, sIz, sJx, sJy, sJz, sKx, sKy, sKz;
+
+    public VectorVisualizer3D(Window owner) {
+        super(owner, "VecTor 3D - Visualizzatore Matrici Spaziali",
+                (owner instanceof Dialog) ? ModalityType.APPLICATION_MODAL : ModalityType.MODELESS);
+
+        setSize(1300, 850);
+        setLocationRelativeTo(owner);
+        setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        setLayout(new BorderLayout());
+
+        Color bgColor = MathEditorApp.getThemeColor("bg");
+        Color cardColor = MathEditorApp.getThemeColor("card");
+        getContentPane().setBackground(bgColor);
+
+        JPanel leftPanel = createLeftPanel();
+        leftPanel.setBackground(cardColor);
+        add(leftPanel, BorderLayout.WEST);
+
+        canvas = new ScenePanel();
+        add(canvas, BorderLayout.CENTER);
+
+        JPanel bottomPanel = createBottomPanel();
+        bottomPanel.setBackground(cardColor);
+        add(bottomPanel, BorderLayout.SOUTH);
+
+        setupTimer();
+    }
+
+    private void setupTimer() {
+        animTimer = new Timer(16, e -> {
+            animProgress += animDirection;
+
+            if (animProgress >= 1.0) {
+                animProgress = 1.0;
+                animDirection = -0.01;
+            } else if (animProgress <= 0.0) {
+                animProgress = 0.0;
+                animDirection = 0.01;
+            }
+
+            double t = animProgress * animProgress * (3 - 2 * animProgress);
+
+            // Interpolazione valori
+            ix = lerp(sIx, 1.0, t); iy = lerp(sIy, 0.0, t); iz = lerp(sIz, 0.0, t);
+            jx = lerp(sJx, 0.0, t); jy = lerp(sJy, 1.0, t); jz = lerp(sJz, 0.0, t);
+            kx = lerp(sKx, 0.0, t); ky = lerp(sKy, 0.0, t); kz = lerp(sKz, 1.0, t);
+
+            updateTextFields();
+
+            // OTTIMIZZAZIONE 1: Rimosso updateInfoLabels() dal loop (evita calcolo Det 60fps)
+            // updateInfoLabels();
+
+            canvas.repaint();
+        });
+    }
+
+    private double lerp(double start, double end, double t) {
+        return start + (end - start) * t;
+    }
+
+    private void startAnimation() {
+        if (animTimer.isRunning()) return;
+        sIx = ix; sIy = iy; sIz = iz;
+        sJx = jx; sJy = jy; sJz = jz;
+        sKx = kx; sKy = ky; sKz = kz;
+
+        setInputsEnabled(false);
+        btnPlay.setEnabled(false);
+        btnStop.setEnabled(true);
+
+        // Disabilita checkbox per evitare interazioni durante il calcolo
+        chkShowEigen.setEnabled(false);
+
+        animProgress = 0.0;
+        animDirection = 0.015;
+        animTimer.start();
+    }
+
+    private void stopAnimation() {
+        if (!animTimer.isRunning() && btnPlay.isEnabled()) return;
+        animTimer.stop();
+        ix = sIx; iy = sIy; iz = sIz;
+        jx = sJx; jy = sJy; jz = sJz;
+        kx = sKx; ky = sKy; kz = sKz;
+
+        updateTextFields();
+        updateInfoLabels(); // Aggiorna le label solo alla fine
+
+        canvas.repaint();
+        setInputsEnabled(true);
+        chkShowEigen.setEnabled(true);
+        btnPlay.setEnabled(true);
+        btnStop.setEnabled(false);
+    }
+
+    private JPanel createLeftPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setPreferredSize(new Dimension(420, 0));
+        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        Color bg = MathEditorApp.getThemeColor("bg");
+        Color text = MathEditorApp.getThemeColor("text");
+        Color card = MathEditorApp.getThemeColor("card");
+        panel.setBackground(bg);
+
+        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        header.setBackground(card);
+        header.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel title = new JLabel("Trasformazioni 3D");
+        title.setFont(new Font("SansSerif", Font.BOLD, 24));
+        title.setForeground(text);
+        header.add(title);
+
+        panel.add(header);
+        panel.add(Box.createVerticalStrut(20));
+
+        panel.add(createMatrixSection(text, card));
+        panel.add(Box.createVerticalStrut(15));
+        panel.add(createVectorSection(text, card));
+        panel.add(Box.createVerticalGlue());
+
+        return panel;
+    }
+
+    private JPanel createMatrixSection(Color text, Color card) {
+        JPanel section = createSectionPanel(card, "Matrice T (3x3)", text);
+        Color bgColor = MathEditorApp.getThemeColor("bg");
+
+        JPanel matrixContainer = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        matrixContainer.setBackground(card);
+
+        JPanel matrixContent = new JPanel(new GridLayout(3, 3, 8, 8));
+        matrixContent.setBackground(card);
+
+        Color colI = new Color(239, 68, 68); // Red
+        Color colJ = new Color(34, 197, 94); // Green
+        Color colK = new Color(60, 160, 240); // Blue
+
+        txtIx = createField(ix, text, card);
+        txtJx = createField(jx, text, card);
+        txtKx = createField(kx, text, card);
+        matrixContent.add(createLabeledField(txtIx, "i·x", colI, card));
+        matrixContent.add(createLabeledField(txtJx, "j·x", colJ, card));
+        matrixContent.add(createLabeledField(txtKx, "k·x", colK, card));
+
+        txtIy = createField(iy, text, card);
+        txtJy = createField(jy, text, card);
+        txtKy = createField(ky, text, card);
+        matrixContent.add(createLabeledField(txtIy, "i·y", colI, card));
+        matrixContent.add(createLabeledField(txtJy, "j·y", colJ, card));
+        matrixContent.add(createLabeledField(txtKy, "k·y", colK, card));
+
+        txtIz = createField(iz, text, card);
+        txtJz = createField(jz, text, card);
+        txtKz = createField(kz, text, card);
+        matrixContent.add(createLabeledField(txtIz, "i·z", colI, card));
+        matrixContent.add(createLabeledField(txtJz, "j·z", colJ, card));
+        matrixContent.add(createLabeledField(txtKz, "k·z", colK, card));
+
+        BracketPanel bracketPanel = new BracketPanel(matrixContent, bgColor, card);
+        matrixContainer.add(bracketPanel);
+        section.add(matrixContainer, BorderLayout.CENTER);
+
+        addDocListeners(txtIx, txtIy, txtIz, txtJx, txtJy, txtJz, txtKx, txtKy, txtKz);
+        return section;
+    }
+
+    private JPanel createVectorSection(Color text, Color card) {
+        JPanel section = createSectionPanel(card, "Vettore Input (a)", text);
+
+        JPanel vectorContainer = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        vectorContainer.setBackground(card);
+        vectorContainer.setBorder(new EmptyBorder(10, 0, 0, 0));
+
+        JLabel vectorName = new JLabel("<html><i style='font-size:18px; font-family:serif'>a</i> =</html>");
+        vectorName.setForeground(text);
+
+        JPanel vectorContent = new JPanel(new GridLayout(3, 1, 0, 8));
+        vectorContent.setBackground(card);
+
+        txtAx = createField(ax, text, card);
+        txtAy = createField(ay, text, card);
+        txtAz = createField(az, text, card);
+
+        Color vecCol = new Color(245, 158, 11);
+        vectorContent.add(createLabeledField(txtAx, "x", vecCol, card));
+        vectorContent.add(createLabeledField(txtAy, "y", vecCol, card));
+        vectorContent.add(createLabeledField(txtAz, "z", vecCol, card));
+
+        BracketPanel bracketPanel = new BracketPanel(vectorContent, card, card);
+        vectorContainer.add(vectorName);
+        vectorContainer.add(bracketPanel);
+
+        section.add(vectorContainer, BorderLayout.CENTER);
+        addDocListeners(txtAx, txtAy, txtAz);
+        return section;
+    }
+
+    private JPanel createBottomPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        Color cardColor = MathEditorApp.getThemeColor("card");
+        Color borderColor = MathEditorApp.getThemeColor("border");
+        Color textColor = MathEditorApp.getThemeColor("text");
+
+        panel.setBackground(cardColor);
+        panel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, borderColor));
+
+        JPanel infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 10));
+        infoPanel.setBackground(cardColor);
+
+        lblDeterminant = createInfoLabel("Det: 1.00");
+        lblTransformed = createInfoLabel("T(a) = (1.00, 1.00, 1.00)");
+
+        infoPanel.add(lblDeterminant);
+        infoPanel.add(new JSeparator(SwingConstants.VERTICAL));
+        infoPanel.add(lblTransformed);
+
+        infoPanel.add(new JSeparator(SwingConstants.VERTICAL));
+        chkShowEigen = new JCheckBox("Mostra Autovettori");
+        chkShowEigen.setBackground(cardColor);
+        chkShowEigen.setForeground(textColor);
+        chkShowEigen.setFont(new Font("SansSerif", Font.BOLD, 12));
+        chkShowEigen.setFocusPainted(false);
+        chkShowEigen.addActionListener(e -> canvas.repaint());
+        infoPanel.add(chkShowEigen);
+
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
+        controlPanel.setBackground(cardColor);
+
+        btnPlay = createAnimButton("▶", "Avvia Animazione");
+        btnStop = createAnimButton("■", "Ferma e Ripristina");
+        btnStop.setEnabled(false);
+
+        btnPlay.addActionListener(e -> startAnimation());
+        btnStop.addActionListener(e -> stopAnimation());
+
+        controlPanel.add(btnPlay);
+        controlPanel.add(btnStop);
+        panel.add(infoPanel, BorderLayout.WEST);
+        panel.add(controlPanel, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel createSectionPanel(Color card, String titleStr, Color text) {
+        JPanel section = new JPanel(new BorderLayout());
+        section.setBackground(card);
+        section.setAlignmentX(Component.LEFT_ALIGNMENT);
+        section.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(0,0,0,20), 1),
+                new EmptyBorder(15, 15, 15, 15)
+        ));
+        JLabel title = new JLabel(titleStr);
+        title.setFont(new Font("SansSerif", Font.BOLD, 16));
+        title.setForeground(text);
+        section.add(title, BorderLayout.NORTH);
+        return section;
+    }
+
+    private JTextField createField(double val, Color textColor, Color cardColor) {
+        JTextField f = new JTextField(String.valueOf(val));
+        f.setForeground(textColor);
+        f.setCaretColor(textColor);
+        boolean isDark = (cardColor.getRed() + cardColor.getGreen() + cardColor.getBlue()) / 3 < 128;
+        Color inputBg = isDark ?
+                new Color(cardColor.getRed()+20, cardColor.getGreen()+20, cardColor.getBlue()+20) :
+                new Color(245, 245, 245);
+        f.setBackground(inputBg);
+        f.setPreferredSize(new Dimension(70, 35));
+        f.setFont(new Font("Monospaced", Font.BOLD, 14));
+        f.setHorizontalAlignment(JTextField.CENTER);
+        f.setBorder(BorderFactory.createLineBorder(new Color(textColor.getRed(), textColor.getGreen(), textColor.getBlue(), 50), 1));
+        return f;
+    }
+
+    private JPanel createLabeledField(JTextField field, String label, Color labelColor, Color bg) {
+        JPanel container = new JPanel(new BorderLayout(5, 0));
+        container.setBackground(bg);
+        JLabel lbl = new JLabel(label);
+        lbl.setForeground(labelColor);
+        lbl.setFont(new Font("SansSerif", Font.BOLD, 12));
+        lbl.setPreferredSize(new Dimension(25, 35));
+        lbl.setHorizontalAlignment(SwingConstants.RIGHT);
+        container.add(lbl, BorderLayout.WEST);
+        container.add(field, BorderLayout.CENTER);
+        return container;
+    }
+
+    private JLabel createInfoLabel(String text) {
+        Color textColor = MathEditorApp.getThemeColor("text");
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Monospace", Font.BOLD, 13));
+        label.setForeground(textColor);
+        return label;
+    }
+
+    private JButton createAnimButton(String symbol, String tooltip) {
+        Color accentColor = new Color(99, 102, 241);
+        Color accentHover = new Color(79, 82, 221);
+        JButton btn = new JButton(symbol);
+        btn.setFont(new Font("SansSerif", Font.BOLD, 16));
+        btn.setForeground(Color.WHITE);
+        btn.setBackground(accentColor);
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.setPreferredSize(new Dimension(100, 35));
+        btn.setToolTipText(tooltip);
+        btn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) { if (btn.isEnabled()) btn.setBackground(accentHover); }
+            public void mouseExited(MouseEvent e) { btn.setBackground(accentColor); }
+        });
+        return btn;
+    }
+
+    private void addDocListeners(JTextField... fields) {
+        DocumentListener dl = new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { updateFromFields(); }
+            public void removeUpdate(DocumentEvent e) { updateFromFields(); }
+            public void changedUpdate(DocumentEvent e) { updateFromFields(); }
+        };
+        for (JTextField f : fields) f.getDocument().addDocumentListener(dl);
+    }
+
+    private void setInputsEnabled(boolean enabled) {
+        txtIx.setEnabled(enabled); txtIy.setEnabled(enabled); txtIz.setEnabled(enabled);
+        txtJx.setEnabled(enabled); txtJy.setEnabled(enabled); txtJz.setEnabled(enabled);
+        txtKx.setEnabled(enabled); txtKy.setEnabled(enabled); txtKz.setEnabled(enabled);
+        txtAx.setEnabled(enabled); txtAy.setEnabled(enabled); txtAz.setEnabled(enabled);
+    }
+
+    private void updateFromFields() {
+        if (isUpdatingFromCode || (animTimer != null && animTimer.isRunning())) return;
+        try {
+            ix = parse(txtIx.getText()); iy = parse(txtIy.getText()); iz = parse(txtIz.getText());
+            jx = parse(txtJx.getText()); jy = parse(txtJy.getText()); jz = parse(txtJz.getText());
+            kx = parse(txtKx.getText()); ky = parse(txtKy.getText()); kz = parse(txtKz.getText());
+            ax = parse(txtAx.getText()); ay = parse(txtAy.getText()); az = parse(txtAz.getText());
+            updateInfoLabels();
+            if (canvas != null) canvas.repaint();
+        } catch (NumberFormatException ignored) {}
+    }
+
+    private void updateTextFields() {
+        isUpdatingFromCode = true;
+        DecimalFormat df = new DecimalFormat("0.##", new DecimalFormatSymbols(Locale.US));
+        txtIx.setText(df.format(ix)); txtIy.setText(df.format(iy)); txtIz.setText(df.format(iz));
+        txtJx.setText(df.format(jx)); txtJy.setText(df.format(jy)); txtJz.setText(df.format(jz));
+        txtKx.setText(df.format(kx)); txtKy.setText(df.format(ky)); txtKz.setText(df.format(kz));
+        txtAx.setText(df.format(ax)); txtAy.setText(df.format(ay)); txtAz.setText(df.format(az));
+        isUpdatingFromCode = false;
+    }
+
+    private void updateInfoLabels() {
+        double det = ix*(jy*kz - jz*ky) - iy*(jx*kz - jz*kx) + iz*(jx*ky - jy*kx);
+        Point3D t = getTransformedA();
+        DecimalFormat df = new DecimalFormat("0.00", new DecimalFormatSymbols(Locale.US));
+        lblDeterminant.setText("Det: " + df.format(det));
+        lblTransformed.setText("T(a) = (" + df.format(t.x) + ", " + df.format(t.y) + ", " + df.format(t.z) + ")");
+    }
+
+    private double parse(String s) {
+        if (s == null || s.trim().isEmpty() || s.equals("-")) return 0;
+        return Double.parseDouble(s.replace(",", "."));
+    }
+
+    private Point3D getTransformedA() {
+        double tx = ax * ix + ay * jx + az * kx;
+        double ty = ax * iy + ay * jy + az * ky;
+        double tz = ax * iz + ay * jz + az * kz;
+        return new Point3D(tx, ty, tz);
+    }
+
+    private static class Point3D {
+        double x, y, z;
+        Point3D(double x, double y, double z) { this.x=x; this.y=y; this.z=z; }
+        void normalize() {
+            double len = Math.sqrt(x*x + y*y + z*z);
+            if(len > 0.0001) { x/=len; y/=len; z/=len; }
+        }
+    }
+
+    private static class Point2D {
+        double x, y;
+        Point2D(double x, double y) { this.x=x; this.y=y; }
+    }
+
+    private class ScenePanel extends JPanel {
+        private int lastMx, lastMy;
+
+        public ScenePanel() {
+            setBackground(MathEditorApp.isDarkMode() ? new Color(20, 22, 26) : Color.WHITE);
+            setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+
+            MouseAdapter ma = new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent e) {
+                    lastMx = e.getX();
+                    lastMy = e.getY();
+                }
+
+                @Override
+                public void mouseDragged(MouseEvent e) {
+                    int dx = e.getX() - lastMx;
+                    int dy = e.getY() - lastMy;
+                    cameraYaw += dx * 0.01;
+                    cameraPitch += dy * 0.01;
+                    cameraPitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, cameraPitch));
+                    lastMx = e.getX();
+                    lastMy = e.getY();
+                    repaint();
+                }
+            };
+            addMouseListener(ma);
+            addMouseMotionListener(ma);
+        }
+
+        private Point2D project(double x, double y, double z) {
+            double x_yaw = x * Math.cos(cameraYaw) - y * Math.sin(cameraYaw);
+            double y_yaw = x * Math.sin(cameraYaw) + y * Math.cos(cameraYaw);
+            double y_pitch = y_yaw * Math.cos(cameraPitch) - z * Math.sin(cameraPitch);
+            double z_pitch = y_yaw * Math.sin(cameraPitch) + z * Math.cos(cameraPitch);
+            double scale = SCALE;
+            int cx = getWidth() / 2;
+            int cy = getHeight() / 2;
+            return new Point2D(cx + x_yaw * scale, cy - z_pitch * scale);
+        }
+
+        private Point3D applyTransform(double u, double v, double w) {
+            return new Point3D(
+                    u * ix + v * jx + w * kx,
+                    u * iy + v * jy + w * ky,
+                    u * iz + v * jz + w * kz
+            );
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            boolean dark = MathEditorApp.isDarkMode();
+
+            drawTransformedGrid(g2, dark);
+
+            // OTTIMIZZAZIONE 2: Controllo critico
+            // Se l'animazione è in corso, SALTA completamente il calcolo degli autovalori
+            if (chkShowEigen.isSelected() && (animTimer == null || !animTimer.isRunning())) {
+                drawEigenElements(g2, dark);
+            }
+
+            drawVector3D(g2, 0, 0, 0, ix, iy, iz, new Color(239, 68, 68), "i");
+            drawVector3D(g2, 0, 0, 0, jx, jy, jz, new Color(34, 197, 94), "j");
+            drawVector3D(g2, 0, 0, 0, kx, ky, kz, new Color(59, 130, 246), "k");
+
+            Point3D r = getTransformedA();
+            drawVector3D(g2, 0, 0, 0, r.x, r.y, r.z, new Color(245, 158, 11), "a");
+
+            Point2D origin = project(0, 0, 0);
+            g2.setColor(dark ? Color.WHITE : Color.BLACK);
+            g2.fillOval((int) origin.x - 3, (int) origin.y - 3, 6, 6);
+
+            g2.setColor(Color.GRAY);
+            g2.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            g2.drawString("Trascina mouse per ruotare", 10, getHeight() - 10);
+        }
+
+        private void drawEigenElements(Graphics2D g2, boolean dark) {
+            // Risoluzione polinomio caratteristico (Pesante!)
+            double a = -(ix + jy + kz);
+            double M11 = jy * kz - jz * ky;
+            double M22 = ix * kz - iz * kx;
+            double M33 = ix * jy - iy * jx;
+            double b = M11 + M22 + M33;
+            double det = ix*(jy*kz - jz*ky) - iy*(jx*kz - jz*kx) + iz*(jx*ky - jy*kx);
+            double c = -det;
+
+            List<Double> eigenValues = solveCubic(a, b, c);
+
+            Color eigenColor = new Color(216, 180, 254);
+            Color eigenVecColor = new Color(192, 132, 252);
+            if (!dark) {
+                eigenColor = new Color(147, 51, 234, 150);
+                eigenVecColor = new Color(147, 51, 234);
+            }
+
+            int idx = 1;
+            for (Double lambda : eigenValues) {
+                List<Point3D> vectors = getEigenvectors(lambda);
+                for (Point3D v : vectors) {
+                    g2.setColor(eigenColor);
+                    g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{9}, 0));
+                    double range = 10.0;
+                    Point2D p1 = project(-v.x * range, -v.y * range, -v.z * range);
+                    Point2D p2 = project(v.x * range, v.y * range, v.z * range);
+                    g2.drawLine((int)p1.x, (int)p1.y, (int)p2.x, (int)p2.y);
+
+                    String suffix = (vectors.size() > 1) ? ("-" + (char)('a' + vectors.indexOf(v))) : "";
+                    drawVector3D(g2, 0, 0, 0, v.x, v.y, v.z, eigenVecColor, "v" + idx + suffix + " (λ=" + String.format("%.2f", lambda) + ")");
+                }
+                if (!vectors.isEmpty()) idx++;
+            }
+
+            if (eigenValues.isEmpty()) {
+                g2.setColor(Color.GRAY);
+                g2.drawString("Autovalori complessi", 20, 20);
+            }
+        }
+
+        private List<Double> solveCubic(double a, double b, double c) {
+            List<Double> roots = new ArrayList<>();
+            double p = b - a*a/3.0;
+            double q = 2.0*a*a*a/27.0 - a*b/3.0 + c;
+            double delta = q*q/4.0 + p*p*p/27.0;
+
+            if (delta > 0) {
+                double u = Math.cbrt(-q/2.0 + Math.sqrt(delta));
+                double v = Math.cbrt(-q/2.0 - Math.sqrt(delta));
+                roots.add(u + v - a/3.0);
+            } else if (delta == 0) {
+                double u = Math.cbrt(-q/2.0);
+                roots.add(2.0*u - a/3.0);
+                roots.add(-u - a/3.0);
+            } else {
+                double phi = Math.acos(-q/2.0 * Math.sqrt(-27.0/(p*p*p)));
+                double t = 2.0 * Math.sqrt(-p/3.0);
+                roots.add(t * Math.cos(phi/3.0) - a/3.0);
+                roots.add(t * Math.cos((phi + 2.0*Math.PI)/3.0) - a/3.0);
+                roots.add(t * Math.cos((phi + 4.0*Math.PI)/3.0) - a/3.0);
+            }
+
+            List<Double> unique = new ArrayList<>();
+            for(Double r : roots) {
+                boolean exists = false;
+                for(Double u : unique) if(Math.abs(u - r) < 0.001) exists = true;
+                if(!exists) unique.add(r);
+            }
+            return unique;
+        }
+
+        private List<Point3D> getEigenvectors(double lambda) {
+            List<Point3D> results = new ArrayList<>();
+            double epsilon = 1e-5;
+            double[][] rows = new double[3][3];
+            rows[0] = new double[]{ ix - lambda, jx, kx };
+            rows[1] = new double[]{ iy, jy - lambda, ky };
+            rows[2] = new double[]{ iz, jz, kz - lambda };
+
+            double[] magSqRow = new double[3];
+            double maxMagSq = 0;
+            int maxRowIdx = 0;
+
+            for(int i=0; i<3; i++) {
+                magSqRow[i] = rows[i][0]*rows[i][0] + rows[i][1]*rows[i][1] + rows[i][2]*rows[i][2];
+                if(magSqRow[i] > maxMagSq) {
+                    maxMagSq = magSqRow[i];
+                    maxRowIdx = i;
+                }
+            }
+
+            if (maxMagSq < epsilon) {
+                results.add(new Point3D(1, 0, 0));
+                results.add(new Point3D(0, 1, 0));
+                results.add(new Point3D(0, 0, 1));
+                return results;
+            }
+
+            Point3D cp1 = crossProductArr(rows[0], rows[1]);
+            Point3D cp2 = crossProductArr(rows[0], rows[2]);
+            Point3D cp3 = crossProductArr(rows[1], rows[2]);
+
+            double m1 = magSq(cp1);
+            double m2 = magSq(cp2);
+            double m3 = magSq(cp3);
+
+            if (m1 > epsilon || m2 > epsilon || m3 > epsilon) {
+                Point3D v = (m1 >= m2 && m1 >= m3) ? cp1 : (m2 >= m3 ? cp2 : cp3);
+                v.normalize();
+                results.add(v);
+                return results;
+            }
+
+            double[] nArr = rows[maxRowIdx];
+            Point3D normal = new Point3D(nArr[0], nArr[1], nArr[2]);
+            normal.normalize();
+
+            Point3D t1;
+            if (Math.abs(normal.x) > 0.9) t1 = crossProductArr(nArr, new double[]{0, 1, 0});
+            else t1 = crossProductArr(nArr, new double[]{1, 0, 0});
+            t1.normalize();
+
+            Point3D t2 = crossProduct(normal.x, normal.y, normal.z, t1.x, t1.y, t1.z);
+            t2.normalize();
+
+            results.add(t1);
+            results.add(t2);
+            return results;
+        }
+
+        private Point3D crossProductArr(double[] a, double[] b) {
+            return new Point3D(
+                    a[1]*b[2] - a[2]*b[1],
+                    a[2]*b[0] - a[0]*b[2],
+                    a[0]*b[1] - a[1]*b[0]
+            );
+        }
+
+        private Point3D crossProduct(double ax, double ay, double az, double bx, double by, double bz) {
+            return new Point3D(
+                    ay * bz - az * by,
+                    az * bx - ax * bz,
+                    ax * by - ay * bx
+            );
+        }
+
+        private double magSq(Point3D p) { return p.x*p.x + p.y*p.y + p.z*p.z; }
+
+
+        private void drawTransformedGrid(Graphics2D g2, boolean dark) {
+            Color gridCol = dark ? new Color(70, 75, 85, 100) : new Color(200, 200, 200, 150);
+            Color axisCol = dark ? new Color(150, 150, 150, 180) : new Color(100, 100, 100, 180);
+            g2.setStroke(new BasicStroke(1f));
+            int range = 5;
+            for (int n = -range; n <= range; n++) {
+                g2.setColor(n == 0 ? axisCol : gridCol);
+                g2.setStroke(new BasicStroke(n == 0 ? 2f : 1f));
+                Point3D pStart = applyTransform(-range, n, 0);
+                Point3D pEnd   = applyTransform(range, n, 0);
+                Point2D s2d = project(pStart.x, pStart.y, pStart.z);
+                Point2D e2d = project(pEnd.x, pEnd.y, pEnd.z);
+                g2.drawLine((int)s2d.x, (int)s2d.y, (int)e2d.x, (int)e2d.y);
+                Point3D qStart = applyTransform(n, -range, 0);
+                Point3D qEnd   = applyTransform(n, range, 0);
+                Point2D qs2d = project(qStart.x, qStart.y, qStart.z);
+                Point2D qe2d = project(qEnd.x, qEnd.y, qEnd.z);
+                g2.drawLine((int)qs2d.x, (int)qs2d.y, (int)qe2d.x, (int)qe2d.y);
+            }
+        }
+
+        private void drawVector3D(Graphics2D g2, double x0, double y0, double z0,
+                                  double x1, double y1, double z1, Color c, String label) {
+            Point2D start = project(x0, y0, z0);
+            Point2D end = project(x1, y1, z1);
+            if (Math.abs(z1) > 0.05) {
+                Point2D floorPt = project(x1, y1, 0);
+                g2.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 60));
+                g2.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[]{4.0f}, 0.0f));
+                g2.drawLine((int)end.x, (int)end.y, (int)floorPt.x, (int)floorPt.y);
+                g2.fillOval((int)floorPt.x-2, (int)floorPt.y-2, 4, 4);
+            }
+            g2.setColor(c);
+            g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawLine((int)start.x, (int)start.y, (int)end.x, (int)end.y);
+            double angle = Math.atan2(end.y - start.y, end.x - start.x);
+            int arrowSize = 10;
+            Path2D arrow = new Path2D.Double();
+            arrow.moveTo(end.x, end.y);
+            arrow.lineTo(end.x - arrowSize * Math.cos(angle - Math.PI / 6), end.y - arrowSize * Math.sin(angle - Math.PI / 6));
+            arrow.lineTo(end.x - arrowSize * Math.cos(angle + Math.PI / 6), end.y - arrowSize * Math.sin(angle + Math.PI / 6));
+            arrow.closePath();
+            g2.fill(arrow);
+            g2.setFont(new Font("SansSerif", Font.BOLD, 14));
+            int tx = (int)end.x + 8;
+            int ty = (int)end.y - 8;
+            g2.setColor(new Color(MathEditorApp.isDarkMode() ? 0 : 255, MathEditorApp.isDarkMode() ? 0 : 255, MathEditorApp.isDarkMode() ? 0 : 255, 120));
+            g2.drawString(label, tx + 1, ty + 1);
+            g2.setColor(c);
+            g2.drawString(label, tx, ty);
+        }
+    }
+
+    static class BracketPanel extends JPanel {
+        private final JComponent content;
+        private final Color bracketColor;
+
+        public BracketPanel(JComponent content, Color bracketColor, Color backgroundColor) {
+            this.content = content;
+            this.bracketColor = new Color(180, 180, 180);
+            setLayout(new BorderLayout());
+            setBackground(backgroundColor);
+            setBorder(new EmptyBorder(5, 15, 5, 15));
+            add(content, BorderLayout.CENTER);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(bracketColor);
+            g2.setStroke(new BasicStroke(2.0f));
+            int w = getWidth();
+            int h = getHeight();
+            int bW = 10;
+            int gap = 2;
+            g2.drawLine(gap + bW, gap, gap, gap);
+            g2.drawLine(gap, gap, gap, h - gap);
+            g2.drawLine(gap, h - gap, gap + bW, h - gap);
+            g2.drawLine(w - gap - bW, gap, w - gap, gap);
+            g2.drawLine(w - gap, gap, w - gap, h - gap);
+            g2.drawLine(w - gap, h - gap, w - gap - bW, h - gap);
+        }
+    }
+}
