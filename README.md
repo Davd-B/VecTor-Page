@@ -65,7 +65,7 @@ If you want to modify the code or contribute, here is how to set up the project 
 
 ### Prerequisites
 1.  **IntelliJ IDEA** (Community or Ultimate).
-2.  **JDK 8** or higher (Java 11+ recommended).
+2.  **JDK 11** or higher (Java 25 recommended).
 3.  **JLaTeXMath Library:** Download the `jlatexmath-x.x.x.jar` from [Scilab Forge](https://github.com/scilab/jlatexmath) or Maven Central.
 
 ### Steps to Import
