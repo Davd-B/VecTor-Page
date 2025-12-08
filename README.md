@@ -1,4 +1,4 @@
-# VecTor 📐
+# VecTor Vanilla 
 
 **VecTor** is a modern, Java-based desktop application designed for Linear Algebra operations. It combines symbolic mathematics, real-time LaTeX rendering, and interactive 2D / 3D geometric visualizations to help students and engineers understand matrix transformations.
 
