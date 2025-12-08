@@ -7,6 +7,8 @@
 [![Installer (.exe)](https://img.shields.io/badge/Installer-.exe-blue?style=flat&logo=windows)](https://github.com/Davd-B/VecTor-Page/releases/latest/download/VecTor-Installer.exe)
 [![Web DEMO](https://img.shields.io/badge/Web-Demo-brightgreen?style=flat&logo=html5)](https://davd-b.github.io/VecTor-Page/web/)
 
+![Application Demo](img/Video2.gif)
+
 ## 📑 Table of Contents
 - [Quick Start](#-quick-start-download--run)
 - [Killer Features](#-killer-features)
@@ -134,5 +136,3 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ---
 
 *Made with ❤️ and Java Swing. This legacy version is intended as a student project at the University of Genoa - Italy*
-
-![Application Demo](img/video2.gif)
